@@ -22,6 +22,8 @@ Features
 - DNS support for server lookup
 - NTP Support for time sync with internet time servers
 - Webserver support (default port 8080)
+- OTA Updates
+- Access Point Mode (for OTA)
 
 Not (yet) supported:
 - PACKET_PUSH_ACK processing
@@ -29,18 +31,27 @@ Not (yet) supported:
 - FSK modulation
 - downstream messages (tx)
 
+More Features if you're using [WeMos-Lora][3] Shield as gateway
+
+<img src="https://raw.githubusercontent.com/hallard/WeMos-Lora/master/WeMos-Lora-top.png" width="40%" height="40%">&nbsp;
+<img src="https://raw.githubusercontent.com/hallard/WeMos-Lora/master/WeMos-Lora-bot.png" width="40%" height="40%">    
+
+- 2 On board RGB LED for visual 
+- 1 SSD1306 I2C OLED connector
+- 1 On board push button
+
 Dependencies
 ------------
 
-- gBase64 library, The gBase library is actually a base64 library made 
-	by Adam Rudd (url=https://github.com/adamvr/arduino-base64). I changed the name because I had
-	another base64 library installed on my system and they did not coexist well.
-- Time library (http://playground.arduino.cc/code/time)
+- [gBase64][7] library by Adam Rudd is now integrated in the project, no need to install
+- [Time][5] library Arduino [documentation][6]
+- [NeoPixelBus][4] library is your using [WeMos Lora][3] Shield as gateway
 
 Connections
 -----------
-See http://things4u.github.io in the hardware section for building
-and connection instructions
+See [things4u][8] in the [hardware][9] section for building and connection instructions
+See [WeMos-Lora][3] github if you're using WeMos Lora Shield as gateway
+
 
 Configuration
 -------------
@@ -60,3 +71,13 @@ License
 The source files in this repository are made available under the Eclipse
 Public License v1.0, except for the base64 implementation, that has been
 copied from the Semtech Packet Forwader.
+
+
+[2]: https://hallard.me
+[3]: https://github.com/hallard/WeMos-Lora
+[4]: https://github.com/Makuna/NeoPixelBus
+[5]: https://github.com/PaulStoffregen/Time
+[6]: http://playground.arduino.cc/code/time
+[7]: https://github.com/adamvr/arduino-base64
+[8]: http://things4u.github.io
+[9]: http://things4u.github.io/HardwareGuide/hardware_guide.html

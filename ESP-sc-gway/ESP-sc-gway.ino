@@ -12,33 +12,32 @@
  *	 addresses (too many gethost name makes ESP unstable)
  * - Only call yield() in main stream (not for background NTP sync). 
  *
+ * 2016-06-12 - Charles-Henri Hallard (http://hallard.me and http://github.com/hallard)
+ * 							added support for WeMos Lora Gateway
+ * 							added AP mode (for OTA)
+ * 							added Over The Air (OTA) feature 
+ * 							added support for onboard WS2812 RGB Led
+ *							see https://github.com/hallard/WeMos-Lora
+ *
  *******************************************************************************/
 
 //
-#define VERSION " ! V. 1.1.2, 160415"
-
-#include <Esp.h>
-#include <string.h>
-#include <stdio.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <cstdlib>
 #include <sys/time.h>
-#include <cstring>
 #include <SPI.h>
-#include <Time.h>								// http://playground.arduino.cc/code/time
 #include <ESP8266WiFi.h>
+#include <ArduinoOTA.h>
 #include <ESP8266WebServer.h>
-#include <WiFiUdp.h>
+#include <TimeLib.h>	// https://github.com/PaulStoffregen/Time)
+
 extern "C" {
 #include "user_interface.h"
 #include "lwip/err.h"
 #include "lwip/dns.h"
 }
-#include <pins_arduino.h>
-#include <gBase64.h>							// https://github.com/adamvr/arduino-base64 (I changed the name)
-#include "ESP-sc-gway.h"						// This file contains configuration of GWay
+	
+#include "gBase64.h"			// https://github.com/adamvr/arduino-base64 (I changed the name)
+#include "ESP-sc-gway.h"	// This file contains configuration of GWay
+#include "RGBLed.h"				// Thid file is for onboard RGBLED of WeMos Lora Shield
 
 int debug=1;									// Debug level! 0 is no msgs, 1 normal, 2 is extensive
 
@@ -68,9 +67,9 @@ char MAC_char[18];
  *******************************************************************************/
 
 // SX1276 - ESP8266 connections
-int ssPin = 15;									// GPIO15, D8
-int dio0  = 5;									// GPIO5,  D1
-int RST   = 0;									// GPIO16, D0, not connected
+int ssPin = DEFAULT_PIN_SS;	
+int dio0  = DEFAULT_PIN_DIO0;
+int RST   = DEFAULT_PIN_RST;
 
 // Set spreading factor (SF7 - SF12)
 sf_t sf = SF7;
@@ -99,16 +98,8 @@ char platform[24]	= _PLATFORM; 				// platform definition
 char email[40]		= _EMAIL;    				// used for contact email
 char description[64]= _DESCRIPTION;				// used for free form description 
 
-// define servers
-
 IPAddress ntpServer;							// IP address of NTP_TIMESERVER
 IPAddress ttnServer;							// IP Address of thethingsnetwork server
-
-#define SERVER1 _TTNSERVER  					// The Things Network: croft.thethings.girovito.nl "54.72.145.119"
-#define PORT1 1700								// The port on which to send data
-
-//#define SERVER2 _MQTTSERVER      				// 2nd server to send to, e.g. private server
-//#define PORT2 "1700"
 
 WiFiUDP Udp;
 uint32_t lasttime;
@@ -116,85 +107,9 @@ uint32_t lasttime;
 // You can switch webserver off if not necessary
 // Probably better to leave it in though.
 #if A_SERVER==1
-#include <Streaming.h>          				// http://arduiniana.org/libraries/streaming/
-String webPage;
+//#include <Streaming.h>          				// http://arduiniana.org/libraries/streaming/
 ESP8266WebServer server(SERVERPORT);
 #endif
-
-
-// ============================================================================
-// Set all definitions for Gateway
-// ============================================================================	
-
-#define REG_FIFO                    0x00
-#define REG_FIFO_ADDR_PTR           0x0D
-#define REG_FIFO_TX_BASE_AD         0x0E
-#define REG_FIFO_RX_BASE_AD         0x0F
-#define REG_RX_NB_BYTES             0x13
-#define REG_OPMODE                  0x01
-#define REG_FIFO_RX_CURRENT_ADDR    0x10
-#define REG_IRQ_FLAGS               0x12
-#define REG_DIO_MAPPING_1           0x40
-#define REG_DIO_MAPPING_2           0x41
-#define REG_MODEM_CONFIG            0x1D
-#define REG_MODEM_CONFIG2           0x1E
-#define REG_MODEM_CONFIG3           0x26
-#define REG_SYMB_TIMEOUT_LSB  		0x1F
-#define REG_PKT_SNR_VALUE			0x19
-#define REG_PAYLOAD_LENGTH          0x22
-#define REG_IRQ_FLAGS_MASK          0x11
-#define REG_MAX_PAYLOAD_LENGTH 		0x23
-#define REG_HOP_PERIOD              0x24
-#define REG_SYNC_WORD				0x39
-#define REG_VERSION	  				0x42
-
-#define SX72_MODE_RX_CONTINUOS      0x85
-#define SX72_MODE_TX                0x83
-#define SX72_MODE_SLEEP             0x80
-#define SX72_MODE_STANDBY           0x81
-
-#define PAYLOAD_LENGTH              0x40
-
-// LOW NOISE AMPLIFIER
-#define REG_LNA                     0x0C
-#define LNA_MAX_GAIN                0x23
-#define LNA_OFF_GAIN                0x00
-#define LNA_LOW_GAIN		    	0x20
-
-// CONF REG
-#define REG1                        0x0A
-#define REG2                        0x84
-
-#define SX72_MC2_FSK                0x00
-#define SX72_MC2_SF7                0x70
-#define SX72_MC2_SF8                0x80
-#define SX72_MC2_SF9                0x90
-#define SX72_MC2_SF10               0xA0
-#define SX72_MC2_SF11               0xB0
-#define SX72_MC2_SF12               0xC0
-
-#define SX72_MC1_LOW_DATA_RATE_OPTIMIZE  0x01 	// mandated for SF11 and SF12
-
-// FRF
-#define REG_FRF_MSB					0x06
-#define REG_FRF_MID					0x07
-#define REG_FRF_LSB					0x08
-
-#define FRF_MSB						0xD9		// 868.1 Mhz
-#define FRF_MID						0x06
-#define FRF_LSB						0x66
-
-#define BUFLEN 2048  							//Max length of buffer
-
-#define PROTOCOL_VERSION  1
-#define PKT_PUSH_DATA 0
-#define PKT_PUSH_ACK  1
-#define PKT_PULL_DATA 2
-#define PKT_PULL_RESP 3
-#define PKT_PULL_ACK  4
-
-#define TX_BUFF_SIZE  2048
-#define STATUS_SIZE	  512						// This should(!) be enough based on the static text part.. was 1024
 
 
 // ----------------------------------------------------------------------------
@@ -205,7 +120,7 @@ ESP8266WebServer server(SERVERPORT);
 // ----------------------------------------------------------------------------
 void die(const char *s)
 {
-    Serial.println(s);
+  Serial.println(s);
 	delay(50);
 	// system_restart();						// SDK function
 	// ESP.reset();				
@@ -213,31 +128,11 @@ void die(const char *s)
 }
 
 // ----------------------------------------------------------------------------
-// Print leading '0' digits for hours(0) and second(0) when
-// printing values less than 10
-// ----------------------------------------------------------------------------
-void printDigits(int digits)
-{
-    // utility function for digital clock display: prints preceding colon and leading 0
-    if(digits < 10)
-        Serial.print(F("0"));
-    Serial.print(digits);
-}
-
-
-// ----------------------------------------------------------------------------
 // Print the current time
 // ----------------------------------------------------------------------------
 void printTime() {
-	char *Days [] ={"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
-	Serial.print(Days[weekday()-1]);
-	Serial.print(F(" "));
-	printDigits(hour());
-	Serial.print(F(":"));
-	printDigits(minute());
-	Serial.print(F(":"));
-	printDigits(second());
-	return;
+	const char * Days [] ={"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
+	Serial.printf("%s %02d:%02d:%02d", Days[weekday()-1], hour(), minute(), second() );
 }
 
 
@@ -367,18 +262,17 @@ int readUdp(int packetSize)
   IPAddress remoteIpNo = Udp.remoteIP();
   unsigned int remotePortNo = Udp.remotePort();
   if (debug>=1) {
-	Serial.print(F(" Received packet of size "));
-	Serial.print(packetSize);
-	Serial.print(F(" From "));
-	Serial.print(remoteIpNo);
-	Serial.print(F(", port "));
-	Serial.print(remotePortNo);
-	Serial.print(F(", Contents: "));
-	for (int i=0; i<packetSize; i++) {
-		Serial.print(receiveBuffer[i],HEX);
-		Serial.print(':');
-	}
-	Serial.println();
+		Serial.print(F(" Received packet of size "));
+		Serial.print(packetSize);
+		Serial.print(F(" From "));
+		Serial.print(remoteIpNo);
+		Serial.print(F(", port "));
+		Serial.print(remotePortNo);
+		Serial.print(F(", Contents: 0x"));
+		for (int i=0; i<packetSize; i++) {
+			Serial.printf("%02X:", receiveBuffer[i]);
+		}
+		Serial.println();
   }
   return packetSize;
 }
@@ -389,33 +283,146 @@ int readUdp(int packetSize)
 //	It is a matter of returning to the main loop() asap and make sure in next loop
 //	the reconnect is done first thing.
 // ----------------------------------------------------------------------------
-int WlanConnect(char * ssid, char * password) {
-	// We start by connecting to a WiFi network 
-	Serial.print(F("WiFi connect to: ")); Serial.println(ssid);
-	int agains = 0;
-	int ledStatus = LOW;
-	WiFi.begin(ssid, password);
-	while (WiFi.status() != WL_CONNECTED) {
-		agains++;
-		delay(agains*500);
-		digitalWrite(BUILTIN_LED, ledStatus); 	// Write LED high/low
-		ledStatus = (ledStatus == HIGH) ? LOW : HIGH;
-		if (debug>=2) Serial.print(".");
-		yield();
-		// If after 10 times there is still no connection, we probably wait forever
-		// So restart the WiFI.begin process!!
-		if (agains == 10) {
-			agains = 0;
-			Serial.println();
-			//WiFi.disconnect();
-			delay(500);
-			return(-1);
-		}
+int WlanConnect(char * wifi_ssid, char * wifi_pass) {
+	char thishost[17];
+  WiFiMode_t con_type ;
+  int ret = WiFi.status();
+  
+  WiFi.mode(WIFI_AP_STA);
+
+  // Set Hostname for OTA and network (add only 2 last bytes of last MAC Address)
+  sprintf_P(thishost, PSTR("ESP-TTN-GW-%04X"), ESP.getChipId() & 0xFFFF);
+
+	if (debug>=1) {
+	  Serial.print(F("========== SDK Saved parameters Start")); 
+	  WiFi.printDiag(Serial);
+	  Serial.println(F("========== SDK Saved parameters End")); 
 	}
-	Serial.print(F("WiFi connected. local IP address: ")); 
-	Serial.println(WiFi.localIP());
-	yield();
-	return(0);
+
+  if ( strncmp(wifi_ssid, "**", 2) && strncmp(wifi_pass, "**", 2) ) {
+    Serial.println(F("Sketch contain SSID/PSK will set them"));
+  }
+
+  // No empty sketch SSID, try connect 
+  if (*wifi_ssid!='*' && *wifi_pass!='*' ) {
+    Serial.printf("connecting to %s with psk %s\r\n", wifi_ssid, wifi_pass );
+    WiFi.begin(wifi_ssid, wifi_pass);
+  } else {
+    // empty sketch SSID, try autoconnect with SDK saved credentials
+    Serial.println(F("No SSID/PSK defined in sketch\r\nConnecting with SDK ones if any"));
+  }
+
+  // Loop until connected or 20 sec time out
+  unsigned long this_start = millis();
+  LedRGBON( COLOR_ORANGE_YELLOW, RGB_WIFI);
+  LedRGBSetAnimation(333, RGB_WIFI, 0, RGB_ANIM_FADE_IN);
+  while ( WiFi.status() !=WL_CONNECTED && millis()-this_start < 20000 ) {
+    LedRGBAnimate();
+    delay(1); 
+  }
+
+  // Get latest WifI Status
+  ret =  WiFi.status();
+
+ // connected remove AP
+  if (  ret == WL_CONNECTED  ) {
+    WiFi.mode(WIFI_STA);
+  } else {
+    // Need Access point configuration 
+    // SSID = hostname
+    Serial.printf("Starting AP  : %s", thishost);
+
+    // STA+AP Mode without connected to STA, autoconnec will search
+    // other frequencies while trying to connect, this is causing issue
+    // to AP mode, so disconnect will avoid this
+    if (ret != WL_CONNECTED) {
+      // Disable auto retry search channel
+      WiFi.disconnect(); 
+    }
+
+    // protected network
+    Serial.printf(" with key %s\r\n", _AP_PASS);
+    WiFi.softAP(thishost,_AP_PASS);
+
+    Serial.print(F("IP address   : ")); Serial.println(WiFi.softAPIP());
+    Serial.print(F("MAC address  : ")); Serial.println(WiFi.softAPmacAddress());
+  } 
+
+  #ifdef WEMOS_LORA_GW
+  con_type = WiFi.getMode();
+  Serial.print(F("WIFI="));
+  if (con_type == WIFI_STA) {
+    // OK breathing cyan
+    wifi_led_color=COLOR_CYAN;
+    Serial.print(F("STA"));
+  } else if ( con_type==WIFI_AP || con_type==WIFI_AP_STA ) {
+    // Owe're also in AP ? breathing Yellow
+    wifi_led_color=COLOR_ORANGE;
+    if (con_type==WIFI_AP) {
+      Serial.print(F("AP"));
+    } else {
+      Serial.print(F("AP_STA"));
+    }
+  } else {
+    // Error breathing red
+    wifi_led_color=COLOR_RED;
+    Serial.print(F("???"));
+  }
+
+  // Set Breathing color to indicate connexion type on LED 2
+  LedRGBON(wifi_led_color, RGB_WIFI);
+  #endif
+
+  ArduinoOTA.setHostname(thishost);
+  ArduinoOTA.begin();
+
+  // OTA callbacks
+  ArduinoOTA.onStart([]() { 
+    // Light of the LED, stop animation
+    LedRGBOFF();
+    Serial.println(F("\r\nOTA Starting")); 
+  });
+
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) { 
+    uint8_t percent=progress/(total/100);
+
+    #ifdef RGB_LED_PIN
+      // hue from 0.0 to 1.0 (rainbow) with 33% (of 0.5f) luminosity
+      if (percent % 4 >= 2) {
+        rgb_led.SetPixelColor(0, HslColor( (float) percent * 0.01f , 1.0f, 0.3f ));
+        rgb_led.SetPixelColor(1, RgbColor(0));
+      } else {
+        rgb_led.SetPixelColor(0, RgbColor(0));
+        rgb_led.SetPixelColor(1, HslColor( (float) percent * 0.01f , 1.0f, 0.3f ));
+      }
+      rgb_led.Show();  
+    #endif
+
+    if (percent % 10 == 0) {
+      Serial.print('.'); 
+    }
+  });
+
+  ArduinoOTA.onEnd([]() { 
+    #ifdef RGB_LED_PIN
+    rgb_led.SetPixelColor(0, HslColor(COLOR_ORANGE/360.0f, 1.0f, 0.3f));
+    rgb_led.SetPixelColor(1, HslColor(COLOR_ORANGE/360.0f, 1.0f, 0.3f));
+    rgb_led.Show();  
+    #endif
+    Serial.println(F("Done Rebooting")); 
+  });
+
+  ArduinoOTA.onError([](ota_error_t error) { 
+    #ifdef RGB_LED_PIN
+    rgb_led.SetPixelColor(0, HslColor(COLOR_RED/360.0f, 1.0f, 0.3f));
+    rgb_led.SetPixelColor(1, HslColor(COLOR_RED/360.0f, 1.0f, 0.3f));
+    rgb_led.Show();  
+    #endif
+    Serial.println(F("Error")); 
+    ESP.restart(); 
+  });
+
+  return ret;
 }
 
 // ----------------------------------------------------------------------------
@@ -425,39 +432,35 @@ int WlanConnect(char * ssid, char * password) {
 // ----------------------------------------------------------------------------
 void sendUdp(char *msg, int length) {
 	int l;
+	bool err = true ;
 	if (WiFi.status() != WL_CONNECTED) {
 		Serial.println(F("sendUdp: ERROR not connected to WLAN"));
 		Udp.flush();
+	} else {
+		//send the update
+		Udp.beginPacket(ttnServer, (int) PORT1);
 
-		if (WlanConnect( (char *) _SSID, (char *)_PASS) < 0) {
-			Serial.print(F("sendUdp: ERROR connecting to "));
-			Serial.print(_SSID);
-			return;
+		#ifdef SERVER2
+		delay(1);
+		Udp.beginPacket((char *)SERVER2, (int) PORT2);
+		#endif
+
+		if ((l = Udp.write((char *)msg, length)) != length) {
+				Serial.println(F("sendUdp:: Error write"));
+		} else {
+			err = false;
+			if (debug>=2) {
+				Serial.printf("sendUdp: sent %d bytes",l);
+			}
 		}
-		if (debug>=1) Serial.println(F("WiFi reconnected"));	
-		delay(10);
+		
+		yield();
+		Udp.endPacket();
 	}
 
-	//send the update
-	Udp.beginPacket(ttnServer, (int) PORT1);
-
-#ifdef SERVER2
-	delay(1);
-	Udp.beginPacket((char *)SERVER2, (int) PORT2);
-#endif
-
-	if ((l = Udp.write((char *)msg, length)) != length) {
-		Serial.println("sendUdp:: Error write");
-	}
-	else {
-		if (debug>=2) {
-			Serial.print(F("sendUdp: sent "));
-			Serial.print(l);
-			Serial.println(F(" bytes"));
-		}
-	}
-	yield();
-	Udp.endPacket();
+  // 1 fade out animation green if okay else otherwhise
+  LedRGBON(err?COLOR_RED:COLOR_GREEN, RGB_WIFI, true);
+  LedRGBSetAnimation(1000, RGB_WIFI, 1, RGB_ANIM_FADE_OUT);
 }
 
 
@@ -486,7 +489,7 @@ bool UDPconnect() {
 // ----------------------------------------------------------------------------
 // The SS (Chip select) pin is used to make sure the RFM95 is selected
 // ----------------------------------------------------------------------------
-void selectreceiver()
+inline void selectreceiver()
 {
     digitalWrite(ssPin, LOW);
 }
@@ -494,7 +497,7 @@ void selectreceiver()
 // ----------------------------------------------------------------------------
 // ... or unselected
 // ----------------------------------------------------------------------------
-void unselectreceiver()
+inline void unselectreceiver()
 {
     digitalWrite(ssPin, HIGH);
 }
@@ -505,13 +508,13 @@ void unselectreceiver()
 // ----------------------------------------------------------------------------
 byte readRegister(byte addr)
 {
-    selectreceiver();
+  selectreceiver();
 	SPI.beginTransaction(SPISettings(50000, MSBFIRST, SPI_MODE0));
 	SPI.transfer(addr & 0x7F);
 	uint8_t res = SPI.transfer(0x00);
 	SPI.endTransaction();
-    unselectreceiver();
-    return res;
+  unselectreceiver();
+  return res;
 }
 
 // ----------------------------------------------------------------------------
@@ -520,16 +523,16 @@ byte readRegister(byte addr)
 // ----------------------------------------------------------------------------
 void writeRegister(byte addr, byte value)
 {
-    unsigned char spibuf[2];
+  unsigned char spibuf[2];
 
-    spibuf[0] = addr | 0x80;
-    spibuf[1] = value;
-    selectreceiver();
+  spibuf[0] = addr | 0x80;
+  spibuf[1] = value;
+  selectreceiver();
 	SPI.beginTransaction(SPISettings(50000, MSBFIRST, SPI_MODE0));
 	SPI.transfer(spibuf[0]);
 	SPI.transfer(spibuf[1]);
 	SPI.endTransaction();
-    unselectreceiver();
+  unselectreceiver();
 }
 
 // ----------------------------------------------------------------------------
@@ -539,36 +542,35 @@ void writeRegister(byte addr, byte value)
 // ----------------------------------------------------------------------------
 bool receivePkt(char *payload)
 {
-    // clear rxDone
-    writeRegister(REG_IRQ_FLAGS, 0x40);
+  // clear rxDone
+  writeRegister(REG_IRQ_FLAGS, 0x40);
 
-    int irqflags = readRegister(REG_IRQ_FLAGS);
+  int irqflags = readRegister(REG_IRQ_FLAGS);
 
-    cp_nb_rx_rcv++;											// Receive statistics counter
+  cp_nb_rx_rcv++;											// Receive statistics counter
 
-    //  payload crc: 0x20
-    if((irqflags & 0x20) == 0x20)
+  //  payload crc: 0x20
+  if((irqflags & 0x20) == 0x20)
+  {
+    Serial.println(F("CRC error"));
+    writeRegister(REG_IRQ_FLAGS, 0x20);
+    return false;
+  } else {
+
+    cp_nb_rx_ok++;										// Receive OK statistics counter
+
+    byte currentAddr = readRegister(REG_FIFO_RX_CURRENT_ADDR);
+    byte receivedCount = readRegister(REG_RX_NB_BYTES);
+    receivedbytes = receivedCount;
+
+    writeRegister(REG_FIFO_ADDR_PTR, currentAddr);
+
+    for(int i = 0; i < receivedCount; i++)
     {
-        Serial.println(F("CRC error"));
-        writeRegister(REG_IRQ_FLAGS, 0x20);
-        return false;
-    } else {
-
-        cp_nb_rx_ok++;										// Receive OK statistics counter
-
-        byte currentAddr = readRegister(REG_FIFO_RX_CURRENT_ADDR);
-        byte receivedCount = readRegister(REG_RX_NB_BYTES);
-        receivedbytes = receivedCount;
-
-        writeRegister(REG_FIFO_ADDR_PTR, currentAddr);
-
-        for(int i = 0; i < receivedCount; i++)
-        {
-            payload[i] = (char)readRegister(REG_FIFO);
-        }
-		//yield();
+        payload[i] = (char)readRegister(REG_FIFO);
     }
-    return true;
+  }
+  return true;
 }
 
 // ----------------------------------------------------------------------------
@@ -580,75 +582,86 @@ bool receivePkt(char *payload)
 // ----------------------------------------------------------------------------
 void SetupLoRa()
 {
+	Serial.println(F("Trying to Setup LoRa Module with"));
+	Serial.printf("CS=GPIO%d  DIO0=GPIO%d  Reset=", ssPin, dio0 );
+
+	if (RST==NOT_A_PIN ) {
+		Serial.println(F("Unused"));
+	} else {
+		Serial.printf("GPIO%d\r\n",RST);
     digitalWrite(RST, HIGH);
     delay(100);
     digitalWrite(RST, LOW);
     delay(100);
+	}
 
-    byte version = readRegister(REG_VERSION);					// Read the LoRa chip version id
-    if (version == 0x22) {
-        // sx1272
-        Serial.println(F("SX1272 detected, starting."));
-        sx1272 = true;
+  byte version = readRegister(REG_VERSION);					// Read the LoRa chip version id
+  if (version == 0x22) {
+    // sx1272
+    Serial.println(F("SX1272 detected, starting."));
+    sx1272 = true;
+  } else {
+    // sx1276?
+  	if (RST!=NOT_A_PIN ) {
+    	digitalWrite(RST, LOW);
+    	delay(100);
+    	digitalWrite(RST, HIGH);
+    	delay(100);
+  	} 
+
+    version = readRegister(REG_VERSION);
+    if (version == 0x12) {
+        // sx1276
+        Serial.println(F("SX1276 detected, starting."));
+        sx1272 = false;
     } else {
-        // sx1276?
-        digitalWrite(RST, LOW);
-        delay(100);
-        digitalWrite(RST, HIGH);
-        delay(100);
-        version = readRegister(REG_VERSION);
-        if (version == 0x12) {
-            // sx1276
-            Serial.println(F("SX1276 detected, starting."));
-            sx1272 = false;
-        } else {
-            Serial.print(F("Unrecognized transceiver, version: "));
-            Serial.println(version,HEX);
-            die("");
-        }
+        Serial.print(F("Unrecognized transceiver, version: 0x"));
+        Serial.printf("%02X", version);
+        die("");
     }
+  }
 
-    writeRegister(REG_OPMODE, SX72_MODE_SLEEP);
+  writeRegister(REG_OPMODE, SX72_MODE_SLEEP);
 
-    // set frequency
-    uint64_t frf = ((uint64_t)freq << 19) / 32000000;
-    writeRegister(REG_FRF_MSB, (uint8_t)(frf>>16) );
-    writeRegister(REG_FRF_MID, (uint8_t)(frf>> 8) );
-    writeRegister(REG_FRF_LSB, (uint8_t)(frf>> 0) );
+  // set frequency
+  uint64_t frf = ((uint64_t)freq << 19) / 32000000;
+  writeRegister(REG_FRF_MSB, (uint8_t)(frf>>16) );
+  writeRegister(REG_FRF_MID, (uint8_t)(frf>> 8) );
+  writeRegister(REG_FRF_LSB, (uint8_t)(frf>> 0) );
 
-    writeRegister(REG_SYNC_WORD, 0x34); // LoRaWAN public sync word
+  writeRegister(REG_SYNC_WORD, 0x34); // LoRaWAN public sync word
 
-	// Set spreading Factor
-    if (sx1272) {
-        if (sf == SF11 || sf == SF12) {
-            writeRegister(REG_MODEM_CONFIG,0x0B);
-        } else {
-            writeRegister(REG_MODEM_CONFIG,0x0A);
-        }
-        writeRegister(REG_MODEM_CONFIG2,(sf<<4) | 0x04);
-    } else {
-        if (sf == SF11 || sf == SF12) {
-            writeRegister(REG_MODEM_CONFIG3,0x0C);
-        } else {
-            writeRegister(REG_MODEM_CONFIG3,0x04);
-        }
-        writeRegister(REG_MODEM_CONFIG,0x72);
-        writeRegister(REG_MODEM_CONFIG2,(sf<<4) | 0x04);
-    }
+// Set spreading Factor
+  if (sx1272) {
+      if (sf == SF11 || sf == SF12) {
+          writeRegister(REG_MODEM_CONFIG,0x0B);
+      } else {
+          writeRegister(REG_MODEM_CONFIG,0x0A);
+      }
+      writeRegister(REG_MODEM_CONFIG2,(sf<<4) | 0x04);
+  } else {
+      if (sf == SF11 || sf == SF12) {
+          writeRegister(REG_MODEM_CONFIG3,0x0C);
+      } else {
+          writeRegister(REG_MODEM_CONFIG3,0x04);
+      }
+      writeRegister(REG_MODEM_CONFIG,0x72);
+      writeRegister(REG_MODEM_CONFIG2,(sf<<4) | 0x04);
+  }
 
-    if (sf == SF10 || sf == SF11 || sf == SF12) {
-        writeRegister(REG_SYMB_TIMEOUT_LSB,0x05);
-    } else {
-        writeRegister(REG_SYMB_TIMEOUT_LSB,0x08);
-    }
-    writeRegister(REG_MAX_PAYLOAD_LENGTH,0x80);
-    writeRegister(REG_PAYLOAD_LENGTH,PAYLOAD_LENGTH);
-    writeRegister(REG_HOP_PERIOD,0xFF);
-    writeRegister(REG_FIFO_ADDR_PTR, readRegister(REG_FIFO_RX_BASE_AD));
+  if (sf == SF10 || sf == SF11 || sf == SF12) {
+      writeRegister(REG_SYMB_TIMEOUT_LSB,0x05);
+  } else {
+      writeRegister(REG_SYMB_TIMEOUT_LSB,0x08);
+  }
+  writeRegister(REG_MAX_PAYLOAD_LENGTH,0x80);
+  writeRegister(REG_PAYLOAD_LENGTH,PAYLOAD_LENGTH);
+  writeRegister(REG_HOP_PERIOD,0xFF);
+  writeRegister(REG_FIFO_ADDR_PTR, readRegister(REG_FIFO_RX_BASE_AD));
 
-    // Set Continous Receive Mode
-    writeRegister(REG_LNA, LNA_MAX_GAIN);  // max lna gain
-    writeRegister(REG_OPMODE, SX72_MODE_RX_CONTINUOS);
+  // Set Continous Receive Mode
+  writeRegister(REG_LNA, LNA_MAX_GAIN);  // max lna gain
+  writeRegister(REG_OPMODE, SX72_MODE_RX_CONTINUOS);
 }
 
 
@@ -659,61 +672,60 @@ void SetupLoRa()
 // ----------------------------------------------------------------------------
 void sendstat() {
 // XXX removed static
-    char status_report[STATUS_SIZE]; 						// status report as a JSON object
-    char stat_timestamp[32];								// XXX was 24
-    time_t t;
+  char status_report[STATUS_SIZE]; 						// status report as a JSON object
+  char stat_timestamp[32];								// XXX was 24
+  time_t t;
 	char clat[8]={0};
 	char clon[8]={0};
 
-    int stat_index=0;
+  int stat_index=0;
 	
-    // pre-fill the data buffer with fixed fields
-    status_report[0]  = PROTOCOL_VERSION;
-    status_report[3]  = PKT_PUSH_DATA;
+  // pre-fill the data buffer with fixed fields
+  status_report[0]  = PROTOCOL_VERSION;
+  status_report[3]  = PKT_PUSH_DATA;
 	
 	// READ MAC ADDRESS OF ESP8266
-    status_report[4]  = MAC_array[0];
-    status_report[5]  = MAC_array[1];
-    status_report[6]  = MAC_array[2];
-    status_report[7]  = 0xFF;
-    status_report[8]  = 0xFF;
-    status_report[9]  = MAC_array[3];
-    status_report[10] = MAC_array[4];
-    status_report[11] = MAC_array[5];
+  status_report[4]  = MAC_array[0];
+  status_report[5]  = MAC_array[1];
+  status_report[6]  = MAC_array[2];
+  status_report[7]  = 0xFF;
+  status_report[8]  = 0xFF;
+  status_report[9]  = MAC_array[3];
+  status_report[10] = MAC_array[4];
+  status_report[11] = MAC_array[5];
 
-    uint8_t token_h   = (uint8_t)rand(); 					// random token
-    uint8_t token_l   = (uint8_t)rand();					// random token
-    status_report[1]  = token_h;
-    status_report[2]  = token_l;
-    stat_index = 12;										// 12-byte header
+  uint8_t token_h   = (uint8_t)rand(); 					// random token
+  uint8_t token_l   = (uint8_t)rand();					// random token
+  status_report[1]  = token_h;
+  status_report[2]  = token_l;
+  stat_index = 12;										// 12-byte header
 	
-    t = now();												// get timestamp for statistics
+  t = now();												// get timestamp for statistics
 	// %F Short YYYY-MM-DD date, %T  %H:%M:%S,  %Z CET
-    //strftime(stat_timestamp, sizeof stat_timestamp, "%F %T %Z", gmtime(&t));
+  //strftime(stat_timestamp, sizeof stat_timestamp, "%F %T %Z", gmtime(&t));
 		
 	sprintf(stat_timestamp, "%d-%d-%d %d:%d:%d CET", year(),month(),day(),hour(),minute(),second());
-	yield();
 	
 	ftoa(lat,clat,4);										// Convert lat to char array with 4 decimals
 	ftoa(lon,clon,4);										// As Arduino CANNOT prints floats
 	
 	// Build the Status message in JSON format
 	// XXX Split this one up...
-    int j = snprintf((char *)(status_report + stat_index), STATUS_SIZE-stat_index, 
+  int j = snprintf((char *)(status_report + stat_index), STATUS_SIZE-stat_index, 
 		"{\"stat\":{\"time\":\"%s\",\"lati\":%s,\"long\":%s,\"alti\":%i,\"rxnb\":%u,\"rxok\":%u,\"rxfw\":%u,\"ackr\":%u.0,\"dwnb\":%u,\"txnb\":%u,\"pfrm\":\"%s\",\"mail\":\"%s\",\"desc\":\"%s\"}}", 
 		stat_timestamp, clat, clon, (int)alt, cp_nb_rx_rcv, cp_nb_rx_ok, cp_up_pkt_fwd, 0, 0, 0,platform,email,description);
-	yield();												// Give way to the internal housekeeping of the ESP8266
-    stat_index += j;
-    status_report[stat_index] = 0; 							// add string terminator, for safety
+  stat_index += j;
+  status_report[stat_index] = 0; 							// add string terminator, for safety
 
-    if (debug>=1) {
+  if (debug>=1) {
 		Serial.print(F("stat update: <"));
 		Serial.print(stat_index);
 		Serial.print(F("> "));
 		Serial.println((char *)(status_report+12));			// DEBUG: display JSON stat
 	}
-    //send the update
-    sendUdp(status_report, stat_index);
+  
+  //send the update
+  sendUdp(status_report, stat_index);
 
 }
 
@@ -727,34 +739,32 @@ void sendstat() {
 // ----------------------------------------------------------------------------
 int receivepacket(char *buff_up) {
 
-    long int SNR;
-    int rssicorr;
-	char cfreq[12] = {0};										// Character array to hold freq in MHz
+  long int SNR;
+  int rssicorr;
+	char cfreq[12] = {0};			  // Character array to hold freq in MHz
 
-    if(digitalRead(dio0) == 1)									// READY?
-    {
-        if(receivePkt(message)) {
-            byte value = readRegister(REG_PKT_SNR_VALUE);
-            if( value & 0x80 ) // The SNR sign bit is 1
-            {
-                // Invert and divide by 4
-                value = ( ( ~value + 1 ) & 0xFF ) >> 2;
-                SNR = -value;
-            }
-            else
-            {
-                // Divide by 4
-                SNR = ( value & 0xFF ) >> 2;
-            }
-            
-            if (sx1272) {
-                rssicorr = 139;
-            } else {											// Probably SX1276 or RFM95
-                rssicorr = 157;
-            }
-			
+  if(digitalRead(dio0) == 1)	// READY?
+  {
+    if(receivePkt(message)) {
+      byte value = readRegister(REG_PKT_SNR_VALUE);
+
+      if( value & 0x80 ) { // The SNR sign bit is 1
+        // Invert and divide by 4
+        value = ( ( ~value + 1 ) & 0xFF ) >> 2;
+        SNR = -value;
+      } else {
+        // Divide by 4
+        SNR = ( value & 0xFF ) >> 2;
+      }
+      
+      if (sx1272) {
+        rssicorr = 139;
+      } else {											// Probably SX1276 or RFM95
+        rssicorr = 157;
+      }
+		
 			if (debug>=1) {
-			    Serial.print(F("Packet RSSI: "));
+			  Serial.print(F("Packet RSSI: "));
 				Serial.print(readRegister(0x1A)-rssicorr);
 				Serial.print(F(" RSSI: "));
 				Serial.print(readRegister(0x1B)-rssicorr);
@@ -765,126 +775,122 @@ int receivepacket(char *buff_up) {
 				Serial.println();
 				yield();
 			}
-			
-            int j;
+		
+      int j;
+
 			// XXX Base64 library is nopad. So we may have to add padding characters until
 			// 	length is multiple of 4!
 			int encodedLen = base64_enc_len(receivedbytes);		// max 341
 			base64_encode(b64, message, receivedbytes);			// max 341
-			
-            //j = bin_to_b64((uint8_t *)message, receivedbytes, (char *)(b64), 341);
-            //fwrite(b64, sizeof(char), j, stdout);
+		
+      //j = bin_to_b64((uint8_t *)message, receivedbytes, (char *)(b64), 341);
+      //fwrite(b64, sizeof(char), j, stdout);
 
-            int buff_index=0;
+      int buff_index=0;
 
-            // pre-fill the data buffer with fixed fields
-            buff_up[0] = PROTOCOL_VERSION;
-            buff_up[3] = PKT_PUSH_DATA;
+      // pre-fill the data buffer with fixed fields
+      buff_up[0] = PROTOCOL_VERSION;
+      buff_up[3] = PKT_PUSH_DATA;
 
 			// XXX READ MAC ADDRESS OF ESP8266
-            buff_up[4]  = MAC_array[0];
-            buff_up[5]  = MAC_array[1];
-            buff_up[6]  = MAC_array[2];
-            buff_up[7]  = 0xFF;
-            buff_up[8]  = 0xFF;
-            buff_up[9]  = MAC_array[3];
-            buff_up[10] = MAC_array[4];
-            buff_up[11] = MAC_array[5];
+      buff_up[4]  = MAC_array[0];
+      buff_up[5]  = MAC_array[1];
+      buff_up[6]  = MAC_array[2];
+      buff_up[7]  = 0xFF;
+      buff_up[8]  = 0xFF;
+      buff_up[9]  = MAC_array[3];
+      buff_up[10] = MAC_array[4];
+      buff_up[11] = MAC_array[5];
 
-            // start composing datagram with the header 
-            uint8_t token_h = (uint8_t)rand(); 					// random token
-            uint8_t token_l = (uint8_t)rand(); 					// random token
-            buff_up[1] = token_h;
-            buff_up[2] = token_l;
-            buff_index = 12; /* 12-byte header */
+      // start composing datagram with the header 
+      uint8_t token_h = (uint8_t)rand(); 					// random token
+      uint8_t token_l = (uint8_t)rand(); 					// random token
+      buff_up[1] = token_h;
+      buff_up[2] = token_l;
+      buff_index = 12; /* 12-byte header */
 
-            // TODO: tmst can jump if time is (re)set, not good.
-            struct timeval now;
-            gettimeofday(&now, NULL);
-            uint32_t tmst = (uint32_t)(now.tv_sec*1000000 + now.tv_usec);
+      // TODO: tmst can jump if time is (re)set, not good.
+      struct timeval now;
+      gettimeofday(&now, NULL);
+      uint32_t tmst = (uint32_t)(now.tv_sec*1000000 + now.tv_usec);
 
-            // start of JSON structure that will make payload
-            memcpy((void *)(buff_up + buff_index), (void *)"{\"rxpk\":[", 9);
-            buff_index += 9;
-            buff_up[buff_index] = '{';
-            ++buff_index;
-            j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, "\"tmst\":%u", tmst);
-            buff_index += j;
+      // start of JSON structure that will make payload
+      memcpy((void *)(buff_up + buff_index), (void *)"{\"rxpk\":[", 9);
+      buff_index += 9;
+      buff_up[buff_index] = '{';
+      ++buff_index;
+      j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, "\"tmst\":%u", tmst);
+      buff_index += j;
 			ftoa((double)freq/1000000,cfreq,6);						// XXX This can be done better
-            j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"chan\":%1u,\"rfch\":%1u,\"freq\":%s", 0, 0, cfreq);
-            buff_index += j;
-            memcpy((void *)(buff_up + buff_index), (void *)",\"stat\":1", 9);
-            buff_index += 9;
-            memcpy((void *)(buff_up + buff_index), (void *)",\"modu\":\"LORA\"", 14);
-            buff_index += 14;
-            /* Lora datarate & bandwidth, 16-19 useful chars */
-            switch (sf) {
-            case SF7:
-                memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF7", 12);
-                buff_index += 12;
-                break;
-            case SF8:
-                memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF8", 12);
-                buff_index += 12;
-                break;
-            case SF9:
-                memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF9", 12);
-                buff_index += 12;
-                break;
-            case SF10:
-                memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF10", 13);
-                buff_index += 13;
-                break;
-            case SF11:
-                memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF11", 13);
-                buff_index += 13;
-                break;
-            case SF12:
-                memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF12", 13);
-                buff_index += 13;
-                break;
-            default:
-                memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF?", 12);
-                buff_index += 12;
-            }
-            memcpy((void *)(buff_up + buff_index), (void *)"BW125\"", 6);
-            buff_index += 6;
-            memcpy((void *)(buff_up + buff_index), (void *)",\"codr\":\"4/5\"", 13);
-            buff_index += 13;
-            j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"lsnr\":%li", SNR);
-            buff_index += j;
-            j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"rssi\":%d,\"size\":%u", readRegister(0x1A)-rssicorr, receivedbytes);
-            buff_index += j;
-            memcpy((void *)(buff_up + buff_index), (void *)",\"data\":\"", 9);
-            buff_index += 9;
+      j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"chan\":%1u,\"rfch\":%1u,\"freq\":%s", 0, 0, cfreq);
+      buff_index += j;
+      memcpy((void *)(buff_up + buff_index), (void *)",\"stat\":1", 9);
+      buff_index += 9;
+      memcpy((void *)(buff_up + buff_index), (void *)",\"modu\":\"LORA\"", 14);
+      buff_index += 14;
+      /* Lora datarate & bandwidth, 16-19 useful chars */
+      switch (sf) {
+	      case SF7:
+	          memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF7", 12);
+	          buff_index += 12;
+	          break;
+	      case SF8:
+	          memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF8", 12);
+	          buff_index += 12;
+	          break;
+	      case SF9:
+	          memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF9", 12);
+	          buff_index += 12;
+	          break;
+	      case SF10:
+	          memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF10", 13);
+	          buff_index += 13;
+	          break;
+	      case SF11:
+	          memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF11", 13);
+	          buff_index += 13;
+	          break;
+	      case SF12:
+	          memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF12", 13);
+	          buff_index += 13;
+	          break;
+	      default:
+	          memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF?", 12);
+	          buff_index += 12;
+      }
+      memcpy((void *)(buff_up + buff_index), (void *)"BW125\"", 6);
+      buff_index += 6;
+      memcpy((void *)(buff_up + buff_index), (void *)",\"codr\":\"4/5\"", 13);
+      buff_index += 13;
+      j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"lsnr\":%li", SNR);
+      buff_index += j;
+      j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"rssi\":%d,\"size\":%u", readRegister(0x1A)-rssicorr, receivedbytes);
+      buff_index += j;
+      memcpy((void *)(buff_up + buff_index), (void *)",\"data\":\"", 9);
+      buff_index += 9;
 
 			// Use gBase64 library
 			encodedLen = base64_enc_len(receivedbytes);		// max 341
 			j = base64_encode((char *)(buff_up + buff_index), message, receivedbytes);
 
-            buff_index += j;
-            buff_up[buff_index] = '"';
-            ++buff_index;
+      buff_index += j;
+      buff_up[buff_index++] = '"';
 
-            // End of packet serialization
-            buff_up[buff_index] = '}';
-            ++buff_index;
-            buff_up[buff_index] = ']';
-            ++buff_index;
-            // end of JSON datagram payload */
-            buff_up[buff_index] = '}';
-            ++buff_index;
-            buff_up[buff_index] = 0; 						// add string terminator, for safety
+      // End of packet serialization
+      buff_up[buff_index++] = '}';
+      buff_up[buff_index++] = ']';
+      // end of JSON datagram payload */
+      buff_up[buff_index++] = '}';
+      buff_up[buff_index] = 0; 						// add string terminator, for safety
 
 			if (debug>=1) {
 				Serial.print(F("rxpk update: "));
 				Serial.println((char *)(buff_up + 12));		// DEBUG: display JSON payload
 			}
-            
 			return(buff_index);
-			
-        } // received a message
-    } // dio0=1
+		
+    } // received a message
+  } // dio0=1
 	return(-1);
 }
 
@@ -948,13 +954,15 @@ String stringTime(unsigned long t) {
 // Commands: DEBUG, ADDRESS, IP, CONFIG, GETTIME, SETTIME
 // The webpage is completely built response and then printed on screen.
 // ----------------------------------------------------------------------------
-String WifiServer(char *cmd, char *arg) {
+void WifiServer(const char *cmd, const char *arg) {
 
 	String response;
 	char *dup, *pch;
 
 	yield();	
-	if (debug >=2) { Serial.print(F("WifiServer new client")); }
+	if (debug >=2) { 
+		Serial.print(F("WifiServer new client")); 
+	}
 
 	// These can be used as a single argument
 	if (strcmp(cmd, "DEBUG")==0) {									// Set debug level 0-2
@@ -1061,12 +1069,11 @@ String WifiServer(char *cmd, char *arg) {
 	response +="Click <a href=\"/HELP\">here</a> to explain Help and REST options<br>";
 	response +="</BODY></HTML>";
 
+	server.send(200, "text/html", response);
+
 	delay(5);
 	free(dup);									// free the memory used, before jumping to other page
-	return (response);
 }
-
-
 
 #endif
 
@@ -1079,76 +1086,71 @@ String WifiServer(char *cmd, char *arg) {
 // Setup code (one time)
 // ----------------------------------------------------------------------------
 void setup () {
-	Serial.begin(_BAUDRATE);						// As fast as possible for bus
 
-	delay(1500);
-	yield();
-		
+  WiFiMode_t con_type ;
+  int ret = WiFi.status();
+
+	Serial.begin(_BAUDRATE);	// As fast as possible for bus
+
+  Serial.print(F("\r\nBooting "));
+  Serial.println(ARDUINO_BOARD " " __DATE__ " " __TIME__);
+
 	if (debug>=1) {
 		Serial.print(F("! debug: ")); 
-		Serial.println(debug);
-		yield();
 	}
+
+  #ifdef WEMOS_LORA_GW
+  	rgb_led.Begin();
+  	LedRGBOFF();
+  #endif
 	
 	// Setup WiFi UDP connection. Give it some time ..
-	if (WlanConnect( (char *) _SSID, (char *)_PASS) < 0) {
-		Serial.print(F("Error Wifi network SSID: "));
-		Serial.print(_SSID);
-		Serial.print(F(":"));
-		Serial.print(_PASS);
-		Serial.print(F(", Local IP: "));
-		//Serial.print(WiFi.localIP());
-		Serial.println();
-		yield();
-	}
-	else {
-		Serial.println("Wlan Connected");
-		delay(200);
+	if (WlanConnect( (char *) _SSID, (char *)_PASS) == WL_CONNECTED) {
 		// If we are here we are connected to WLAN
 		// So now test the UDP function
 		if (!UDPconnect()) {
 			Serial.println("Error UDPconnect");
 		}
-		delay(500);
 	}
 	 
 	WiFi.macAddress(MAC_array);
-    for (int i = 0; i < sizeof(MAC_array); ++i){
-      sprintf(MAC_char,"%s%02x:",MAC_char,MAC_array[i]);
-    }
+  for (int i = 0; i < sizeof(MAC_array); ++i){
+    sprintf(MAC_char,"%s%02x:",MAC_char,MAC_array[i]);
+  }
 	Serial.print("MAC: ");
-    Serial.println(MAC_char);
+  Serial.println(MAC_char);
 	
-    pinMode(ssPin, OUTPUT);
-    pinMode(dio0, INPUT);
-    pinMode(RST, OUTPUT);
-	
+	// Configure IO Pin
+  pinMode(ssPin, OUTPUT);
+  pinMode(dio0, INPUT);
+  pinMode(RST, OUTPUT);
+
 	SPI.begin();
-	delay(1000);
-    SetupLoRa();
-	delay(500);
+	delay(100);
+  SetupLoRa();
+	delay(100);
 	
 	// We choose the Gateway ID to be the Ethernet Address of our Gateway card
-    // display results of getting hardware address
+  // display results of getting hardware address
 	// 
-    Serial.print("Gateway ID: ");
-    Serial.print(MAC_array[0],HEX);
-    Serial.print(MAC_array[1],HEX);
-    Serial.print(MAC_array[2],HEX);
+  Serial.print("Gateway ID: ");
+  Serial.print(MAC_array[0],HEX);
+  Serial.print(MAC_array[1],HEX);
+  Serial.print(MAC_array[2],HEX);
 	Serial.print(0xFF, HEX);
 	Serial.print(0xFF, HEX);
-    Serial.print(MAC_array[3],HEX);
-    Serial.print(MAC_array[4],HEX);
-    Serial.print(MAC_array[5],HEX);
+  Serial.print(MAC_array[3],HEX);
+  Serial.print(MAC_array[4],HEX);
+  Serial.print(MAC_array[5],HEX);
 
-    Serial.print(", Listening at SF");
+  Serial.print(", Listening at SF");
 	Serial.print(sf);
 	Serial.print(" on ");
 	Serial.print((double)freq/1000000);
 	Serial.println(" Mhz.");
 
 	WiFi.hostByName(_TTNSERVER, ttnServer);					// Use DNS to get server IP once
-	delay(500);
+	delay(100);
 	
 	setupTime();											// Set NTP time host and interval
 	setTime((time_t)getNtpTime());
@@ -1156,36 +1158,23 @@ void setup () {
 	Serial.println();
 
 #if A_SERVER==1	
-	server.on("/", []() {
-		webPage = WifiServer("","");
-		server.send(200, "text/html", webPage);
-	});
-	server.on("/HELP", []() {
-		webPage = WifiServer("HELP","");
-		server.send(200, "text/html", webPage);
-	});
-	server.on("/RESET", []() {
-		webPage = WifiServer("RESET","");
-		server.send(200, "text/html", webPage);
-	});
-	server.on("/DEBUG=0", []() {
-		webPage = WifiServer("DEBUG","0");
-		server.send(200, "text/html", webPage);
-	});
-	server.on("/DEBUG=1", []() {
-		webPage = WifiServer("DEBUG","1");
-		server.send(200, "text/html", webPage);
-	});
-	server.on("/DEBUG=2", []() {
-		webPage = WifiServer("DEBUG","2");
-		server.send(200, "text/html", webPage);
-	});
+	server.on("/",        []() { WifiServer("","");	      });
+	server.on("/HELP",    []() { WifiServer("HELP","");	  });
+	server.on("/RESET",   []() { WifiServer("RESET","");	});
+	server.on("/DEBUG=0", []() { WifiServer("DEBUG","0");	});
+	server.on("/DEBUG=1", []() { WifiServer("DEBUG","1");	});
+	server.on("/DEBUG=2", []() { WifiServer("DEBUG","2");	});
+
 	server.begin();											// Start the webserver
 	Serial.print(F("Admin Server started on port "));
 	Serial.println(SERVERPORT);
 #endif	
-	delay(1000);											// Wait after setup
-	Serial.println("-----------------------------");
+	Serial.println("---------------------------------");
+
+	// Breathing now set to 1000ms
+	LedRGBSetAnimation(1000, RGB_WIFI);
+	LedRGBOFF(RGB_RF); 
+
 }
 
 // ----------------------------------------------------------------------------
@@ -1202,38 +1191,74 @@ void setup () {
 // ----------------------------------------------------------------------------
 void loop ()
 {
+	static bool led_state ; 
+  bool new_led_state ; 
 	int buff_index;
 	char buff_up[TX_BUFF_SIZE]; 						// buffer to compose the upstream packet
 	
 	// Receive Lora messages
-    if ((buff_index = receivepacket(buff_up)) >= 0) {	// read is successful
+  if ((buff_index = receivepacket(buff_up)) >= 0) {	// read is successful
 		yield();
+  	LedRGBON(COLOR_MAGENTA, RGB_RF, true);
+  	LedRGBSetAnimation(1000, RGB_RF, 1, RGB_ANIM_FADE_OUT);		
 		sendUdp(buff_up, buff_index);					// We can send to multiple sockets if necessary
 	}
 	else {
 		// No message received
 	}
-	yield();
 	
 	// Receive WiFi messages. This is important since the TTN broker will return confirmation
 	// messages on UDP for every message sent by the gateway.
 	int packetSize = Udp.parsePacket();
 	if (packetSize >0) {
 		yield();
-		readUdp(packetSize);
+		if (readUdp(packetSize)>0) {
+	  	// 1 fade out animation green if okay else otherwhise
+  		LedRGBON(COLOR_GREEN, RGB_WIFI, true);
+		} else {
+  		LedRGBON(COLOR_ORANGE, RGB_WIFI, true);
+		}
+  	LedRGBSetAnimation(1000, RGB_WIFI, 1, RGB_ANIM_FADE_OUT);
 	}
-	yield();
 	
 	uint32_t nowseconds = (uint32_t) millis() /1000;
-    if (nowseconds - lasttime >= 30) {					// Send status every 30 seconds
-        sendstat();
+  if (nowseconds - lasttime >= 30) {					// Send status every 30 seconds
+    sendstat();
 		lasttime = nowseconds;
-    }
+  }
 
 	// Handle the WiFi server part of this sketch. Mainly used for administration of the node
 #if A_SERVER==1
 	server.handleClient();
 #endif	
 	
-	yield();
+	// On board Led blink management 
+	if (WiFi.status()==WL_CONNECTED) {
+	  new_led_state = ((millis() % 1000) < 200) ? LOW:HIGH; // Connected long blink 200ms on each second
+	} else {
+	  new_led_state = ((millis() % 333) < 111) ? LOW:HIGH;// AP Mode or client failed quick blink 111ms on each 1/3sec
+	}
+	  // Led management
+	if (led_state != new_led_state) {
+	  led_state = new_led_state;
+	  digitalWrite(LED_BUILTIN, led_state);
+	}
+
+	#ifdef WEMOS_LORA_GW
+		// RF RGB LED should be off if no animation is running place
+		if ( animationState[0].RgbEffectState == RGB_ANIM_NONE) {
+		  LedRGBOFF(RGB_RF);
+		}
+		// WIFI RGB LED should breath if no animation is running place
+		if ( animationState[1].RgbEffectState == RGB_ANIM_NONE) {
+		  LedRGBON(wifi_led_color, RGB_WIFI);
+		  LedRGBSetAnimation(1000, RGB_WIFI);
+		}
+
+		// Manage Animations
+		LedRGBAnimate();
+	#endif
+
+  // Handle OTA
+  ArduinoOTA.handle();
 }
