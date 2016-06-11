@@ -31,21 +31,23 @@ Not (yet) supported:
 - FSK modulation
 - downstream messages (tx)
 
-More Features if you're using [WeMos-Lora][3] Shield as gateway
-
-<img src="https://raw.githubusercontent.com/hallard/WeMos-Lora/master/WeMos-Lora-top.png" width="40%" height="40%">&nbsp;
-<img src="https://raw.githubusercontent.com/hallard/WeMos-Lora/master/WeMos-Lora-bot.png" width="40%" height="40%">    
-
+Added features if you're using [WeMos-Lora][3] Shield as gateway
 - 2 On board RGB LED for visual 
 - 1 SSD1306 I2C OLED connector
 - 1 On board push button
+
+Assembled WeMos-Lora Shield
+
+<img src="https://raw.githubusercontent.com/hallard/WeMos-Lora/master/WeMos-Lora-top-assembled.jpg" alt="Top">    
+<img src="https://raw.githubusercontent.com/hallard/WeMos-Lora/master/WeMos-Lora-bot-assembled.jpg" alt="Bottom">    
+
 
 Dependencies
 ------------
 
 - [gBase64][7] library by Adam Rudd is now integrated in the project, no need to install
 - [Time][5] library Arduino [documentation][6]
-- [NeoPixelBus][4] library is your using [WeMos Lora][3] Shield as gateway
+- [NeoPixelBus][4] library is you're using [WeMos Lora][3] Shield as gateway
 
 Connections
 -----------
