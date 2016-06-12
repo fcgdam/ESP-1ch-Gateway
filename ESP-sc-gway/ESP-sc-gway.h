@@ -47,7 +47,8 @@
 #define _AP_PASS  "1Ch@n3l-Gateway"
 
 // MQTT definitions
-#define _TTNSERVER "croft.thethings.girovito.nl"
+//#define _TTNSERVER "croft.thethings.girovito.nl"
+#define _TTNSERVER "eu.staging.thethings.network"
 #define _MQTTSERVER "your.server.com"
 
 // TTN related
