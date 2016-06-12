@@ -60,8 +60,13 @@ void LedRGBFadeAnimUpdate(const AnimationParam& param)
   // this gets called for each animation on every time step
   // progress will start at 0.0 and end at 1.0
   // apply a exponential curve to both front and back
-  //float progress = NeoEase::CubicInOut(param.progress) ;
-  float progress = param.progress ;
+  float progress = param.progress;
+
+  if (animationState[param.index].RgbEffectState==RGB_ANIM_FADE_IN)
+	  progress =  NeoEase::QuadraticOut(param.progress) ;
+
+  if (animationState[param.index].RgbEffectState==RGB_ANIM_FADE_OUT)
+  	progress =  NeoEase::QuadraticIn(param.progress) ;
 
   // we use the blend function on the RgbColor to mix
   // color based on the progress given to us in the animation
