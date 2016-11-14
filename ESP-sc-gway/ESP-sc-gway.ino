@@ -48,6 +48,7 @@ char message[256];
 char b64[256];
 bool sx1272 = true;								// Actually we use sx1276/RFM95
 byte receivedbytes;
+byte modemstat;
 
 uint32_t cp_nb_rx_rcv;
 uint32_t cp_nb_rx_ok;
@@ -546,6 +547,7 @@ bool receivePkt(char *payload)
   writeRegister(REG_IRQ_FLAGS, 0x40);
 
   int irqflags = readRegister(REG_IRQ_FLAGS);
+  modemstat = readRegister(REG_MODEM_STAT);
 
   cp_nb_rx_rcv++;											// Receive statistics counter
 
@@ -821,7 +823,8 @@ int receivepacket(char *buff_up) {
       ++buff_index;
       j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, "\"tmst\":%u", tmst);
       buff_index += j;
-			ftoa((double)freq/1000000,cfreq,6);						// XXX This can be done better
+      
+	  ftoa((double)freq/1000000,cfreq,6);						// XXX This can be done better
       j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"chan\":%1u,\"rfch\":%1u,\"freq\":%s", 0, 0, cfreq);
       buff_index += j;
       memcpy((void *)(buff_up + buff_index), (void *)",\"stat\":1", 9);
@@ -860,8 +863,29 @@ int receivepacket(char *buff_up) {
       }
       memcpy((void *)(buff_up + buff_index), (void *)"BW125\"", 6);
       buff_index += 6;
-      memcpy((void *)(buff_up + buff_index), (void *)",\"codr\":\"4/5\"", 13);
-      buff_index += 13;
+      
+      switch((int)((modemstat & 0xE0) >> 5)) {
+            case 1:
+                memcpy((void *)(buff_up + buff_index), (void *)",\"codr\":\"4/5\"", 13);
+                buff_index += 13;
+                break;
+            case 2:
+                memcpy((void *)(buff_up + buff_index), (void *)",\"codr\":\"4/6\"", 13);
+                buff_index += 13;
+                break;
+            case 3:
+                memcpy((void *)(buff_up + buff_index), (void *)",\"codr\":\"4/7\"", 13);
+                buff_index += 13;
+                break;
+            case 4:
+                memcpy((void *)(buff_up + buff_index), (void *)",\"codr\":\"4/8\"", 13);
+                buff_index += 13;
+                break;
+            default:
+                memcpy((void *)(buff_up + buff_index), (void *)",\"codr\":\"?\"", 13);
+                buff_index += 11;
+      }
+
       j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"lsnr\":%li", SNR);
       buff_index += j;
       j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"rssi\":%d,\"size\":%u", readRegister(0x1A)-rssicorr, receivedbytes);
