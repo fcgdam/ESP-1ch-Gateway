@@ -7,15 +7,15 @@
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  *
- * Notes: 
+ * Notes:
  * - Once call gethostbyname() to get IP for services, after that only use IP
  *	 addresses (too many gethost name makes ESP unstable)
- * - Only call yield() in main stream (not for background NTP sync). 
+ * - Only call yield() in main stream (not for background NTP sync).
  *
  * 2016-06-12 - Charles-Henri Hallard (http://hallard.me and http://github.com/hallard)
  * 							added support for WeMos Lora Gateway
  * 							added AP mode (for OTA)
- * 							added Over The Air (OTA) feature 
+ * 							added Over The Air (OTA) feature
  * 							added support for onboard WS2812 RGB Led
  *							see https://github.com/hallard/WeMos-Lora
  *
@@ -27,6 +27,7 @@
 #include <ESP8266WiFi.h>
 #include <ArduinoOTA.h>
 #include <ESP8266WebServer.h>
+#include <ESP8266mDNS.h>
 #include <TimeLib.h>	// https://github.com/PaulStoffregen/Time)
 
 extern "C" {
@@ -34,7 +35,7 @@ extern "C" {
 #include "lwip/err.h"
 #include "lwip/dns.h"
 }
-	
+
 #include "gBase64.h"			// https://github.com/adamvr/arduino-base64 (I changed the name)
 #include "ESP-sc-gway.h"	// This file contains configuration of GWay
 #include "RGBLed.h"				// Thid file is for onboard RGBLED of WeMos Lora Shield
@@ -68,7 +69,7 @@ char MAC_char[18];
  *******************************************************************************/
 
 // SX1276 - ESP8266 connections
-int ssPin = DEFAULT_PIN_SS;	
+int ssPin = DEFAULT_PIN_SS;
 int dio0  = DEFAULT_PIN_DIO0;
 int RST   = DEFAULT_PIN_RST;
 
@@ -97,7 +98,7 @@ float lon			= _LON;
 int   alt			= _ALT;
 char platform[24]	= _PLATFORM; 				// platform definition
 char email[40]		= _EMAIL;    				// used for contact email
-char description[64]= _DESCRIPTION;				// used for free form description 
+char description[64]= _DESCRIPTION;				// used for free form description
 
 IPAddress ntpServer;							// IP address of NTP_TIMESERVER
 IPAddress ttnServer;							// IP Address of thethingsnetwork server
@@ -124,7 +125,7 @@ void die(const char *s)
   Serial.println(s);
 	delay(50);
 	// system_restart();						// SDK function
-	// ESP.reset();				
+	// ESP.reset();
 	abort();									// Within a second
 }
 
@@ -147,7 +148,7 @@ void ftoa(float f, char *val, int p) {
 	int j=1;
 	int ival, fval;
 	char b[6];
-	
+
 	for (int i=0; i< p; i++) { j= j*10; }
 
 	ival = (int) f;								// Make integer part
@@ -156,7 +157,7 @@ void ftoa(float f, char *val, int p) {
 												// sprintf does NOT fit in memory
 	strcat(val,itoa(ival,b,10));
 	strcat(val,".");							// decimal point
-	
+
 	itoa(fval,b,10);
 	for (int i=0; i<(p-strlen(b)); i++) strcat(val,"0");
 	// Fraction can be anything from 0 to 10^p , so can have less digits
@@ -184,7 +185,7 @@ void sendNTPpacket(IPAddress& timeServerIP) {
 	packetBuffer[12]  = 49;
 	packetBuffer[13]  = 0x4E;
 	packetBuffer[14]  = 49;
-	packetBuffer[15]  = 52;	
+	packetBuffer[15]  = 52;
 
 	Udp.beginPacket(timeServerIP, (int) 123);	// NTP Server and Port
 
@@ -210,7 +211,7 @@ time_t getNtpTime()
   for (int i = 0 ; i < 4 ; i++) { 				// 5 retries.
     sendNTPpacket(ntpServer);
     uint32_t beginWait = millis();
-    while (millis() - beginWait < 5000) 
+    while (millis() - beginWait < 5000)
 	{
       if (Udp.parsePacket()) {
         Udp.read(packetBuffer, NTP_PACKET_SIZE);
@@ -219,7 +220,7 @@ time_t getNtpTime()
         unsigned long lowWord = word(packetBuffer[42], packetBuffer[43]);
         unsigned long secSince1900 = highWord << 16 | lowWord;
         Udp.flush();
-        return secSince1900 - 2208988800UL + NTP_TIMEZONES * SECS_PER_HOUR;				
+        return secSince1900 - 2208988800UL + NTP_TIMEZONES * SECS_PER_HOUR;
 		// UTC is 1 TimeZone correction when no daylight saving time
       }
       //delay(10);
@@ -288,23 +289,23 @@ int WlanConnect(char * wifi_ssid, char * wifi_pass) {
 	char thishost[17];
   WiFiMode_t con_type ;
   int ret = WiFi.status();
-  
+
   WiFi.mode(WIFI_AP_STA);
 
   // Set Hostname for OTA and network (add only 2 last bytes of last MAC Address)
   sprintf_P(thishost, PSTR("ESP-TTN-GW-%04X"), ESP.getChipId() & 0xFFFF);
 
 	if (debug>=1) {
-	  Serial.print(F("========== SDK Saved parameters Start")); 
+	  Serial.print(F("========== SDK Saved parameters Start"));
 	  WiFi.printDiag(Serial);
-	  Serial.println(F("========== SDK Saved parameters End")); 
+	  Serial.println(F("========== SDK Saved parameters End"));
 	}
 
   if ( strncmp(wifi_ssid, "**", 2) && strncmp(wifi_pass, "**", 2) ) {
     Serial.println(F("Sketch contain SSID/PSK will set them"));
   }
 
-  // No empty sketch SSID, try connect 
+  // No empty sketch SSID, try connect
   if (*wifi_ssid!='*' && *wifi_pass!='*' ) {
     Serial.printf("connecting to %s with psk %s\r\n", wifi_ssid, wifi_pass );
     WiFi.begin(wifi_ssid, wifi_pass);
@@ -319,7 +320,7 @@ int WlanConnect(char * wifi_ssid, char * wifi_pass) {
   LedRGBSetAnimation(333, RGB_WIFI, 0, RGB_ANIM_FADE_IN);
   while ( WiFi.status() !=WL_CONNECTED && millis()-this_start < 20000 ) {
     LedRGBAnimate();
-    delay(1); 
+    delay(1);
   }
 
   // Get latest WifI Status
@@ -329,7 +330,7 @@ int WlanConnect(char * wifi_ssid, char * wifi_pass) {
   if (  ret == WL_CONNECTED  ) {
     WiFi.mode(WIFI_STA);
   } else {
-    // Need Access point configuration 
+    // Need Access point configuration
     // SSID = hostname
     Serial.printf("Starting AP  : %s", thishost);
 
@@ -338,7 +339,7 @@ int WlanConnect(char * wifi_ssid, char * wifi_pass) {
     // to AP mode, so disconnect will avoid this
     if (ret != WL_CONNECTED) {
       // Disable auto retry search channel
-      WiFi.disconnect(); 
+      WiFi.disconnect();
     }
 
     // protected network
@@ -347,7 +348,7 @@ int WlanConnect(char * wifi_ssid, char * wifi_pass) {
 
     Serial.print(F("IP address   : ")); Serial.println(WiFi.softAPIP());
     Serial.print(F("MAC address  : ")); Serial.println(WiFi.softAPmacAddress());
-  } 
+  }
 
   #ifdef WEMOS_LORA_GW
   con_type = WiFi.getMode();
@@ -378,13 +379,13 @@ int WlanConnect(char * wifi_ssid, char * wifi_pass) {
   ArduinoOTA.begin();
 
   // OTA callbacks
-  ArduinoOTA.onStart([]() { 
+  ArduinoOTA.onStart([]() {
     // Light of the LED, stop animation
     LedRGBOFF();
-    Serial.println(F("\r\nOTA Starting")); 
+    Serial.println(F("\r\nOTA Starting"));
   });
 
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) { 
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
     uint8_t percent=progress/(total/100);
 
     #ifdef RGB_LED_PIN
@@ -396,31 +397,31 @@ int WlanConnect(char * wifi_ssid, char * wifi_pass) {
         rgb_led.SetPixelColor(0, RgbColor(0));
         rgb_led.SetPixelColor(1, HslColor( (float) percent * 0.01f , 1.0f, 0.3f ));
       }
-      rgb_led.Show();  
+      rgb_led.Show();
     #endif
 
     if (percent % 10 == 0) {
-      Serial.print('.'); 
+      Serial.print('.');
     }
   });
 
-  ArduinoOTA.onEnd([]() { 
+  ArduinoOTA.onEnd([]() {
     #ifdef RGB_LED_PIN
     rgb_led.SetPixelColor(0, HslColor(COLOR_ORANGE/360.0f, 1.0f, 0.3f));
     rgb_led.SetPixelColor(1, HslColor(COLOR_ORANGE/360.0f, 1.0f, 0.3f));
-    rgb_led.Show();  
+    rgb_led.Show();
     #endif
-    Serial.println(F("Done Rebooting")); 
+    Serial.println(F("Done Rebooting"));
   });
 
-  ArduinoOTA.onError([](ota_error_t error) { 
+  ArduinoOTA.onError([](ota_error_t error) {
     #ifdef RGB_LED_PIN
     rgb_led.SetPixelColor(0, HslColor(COLOR_RED/360.0f, 1.0f, 0.3f));
     rgb_led.SetPixelColor(1, HslColor(COLOR_RED/360.0f, 1.0f, 0.3f));
-    rgb_led.Show();  
+    rgb_led.Show();
     #endif
-    Serial.println(F("Error")); 
-    ESP.restart(); 
+    Serial.println(F("Error"));
+    ESP.restart();
   });
 
   return ret;
@@ -428,7 +429,7 @@ int WlanConnect(char * wifi_ssid, char * wifi_pass) {
 
 // ----------------------------------------------------------------------------
 // Send an UDP/DGRAM message to the MQTT server
-// If we send to more than one host (not sure why) then we need to set sockaddr 
+// If we send to more than one host (not sure why) then we need to set sockaddr
 // before sending.
 // ----------------------------------------------------------------------------
 void sendUdp(char *msg, int length) {
@@ -454,7 +455,7 @@ void sendUdp(char *msg, int length) {
 				Serial.printf("sendUdp: sent %d bytes",l);
 			}
 		}
-		
+
 		yield();
 		Udp.endPacket();
 	}
@@ -519,7 +520,7 @@ byte readRegister(byte addr)
 }
 
 // ----------------------------------------------------------------------------
-// Write value to a register with address addr. 
+// Write value to a register with address addr.
 // Function writes one byte at a time.
 // ----------------------------------------------------------------------------
 void writeRegister(byte addr, byte value)
@@ -538,7 +539,7 @@ void writeRegister(byte addr, byte value)
 
 // ----------------------------------------------------------------------------
 // This LoRa function reads a message from the LoRa transceiver
-// returns true when message correctly received or fails on error 
+// returns true when message correctly received or fails on error
 // (CRC error for example)
 // ----------------------------------------------------------------------------
 bool receivePkt(char *payload)
@@ -609,7 +610,7 @@ void SetupLoRa()
     	delay(100);
     	digitalWrite(RST, HIGH);
     	delay(100);
-  	} 
+  	}
 
     version = readRegister(REG_VERSION);
     if (version == 0x12) {
@@ -681,11 +682,11 @@ void sendstat() {
 	char clon[8]={0};
 
   int stat_index=0;
-	
+
   // pre-fill the data buffer with fixed fields
   status_report[0]  = PROTOCOL_VERSION;
   status_report[3]  = PKT_PUSH_DATA;
-	
+
 	// READ MAC ADDRESS OF ESP8266
   status_report[4]  = MAC_array[0];
   status_report[5]  = MAC_array[1];
@@ -701,20 +702,20 @@ void sendstat() {
   status_report[1]  = token_h;
   status_report[2]  = token_l;
   stat_index = 12;										// 12-byte header
-	
+
   t = now();												// get timestamp for statistics
 	// %F Short YYYY-MM-DD date, %T  %H:%M:%S,  %Z CET
   //strftime(stat_timestamp, sizeof stat_timestamp, "%F %T %Z", gmtime(&t));
-		
+
 	sprintf(stat_timestamp, "%d-%d-%d %d:%d:%d CET", year(),month(),day(),hour(),minute(),second());
-	
+
 	ftoa(lat,clat,4);										// Convert lat to char array with 4 decimals
 	ftoa(lon,clon,4);										// As Arduino CANNOT prints floats
-	
+
 	// Build the Status message in JSON format
 	// XXX Split this one up...
-  int j = snprintf((char *)(status_report + stat_index), STATUS_SIZE-stat_index, 
-		"{\"stat\":{\"time\":\"%s\",\"lati\":%s,\"long\":%s,\"alti\":%i,\"rxnb\":%u,\"rxok\":%u,\"rxfw\":%u,\"ackr\":%u.0,\"dwnb\":%u,\"txnb\":%u,\"pfrm\":\"%s\",\"mail\":\"%s\",\"desc\":\"%s\"}}", 
+  int j = snprintf((char *)(status_report + stat_index), STATUS_SIZE-stat_index,
+		"{\"stat\":{\"time\":\"%s\",\"lati\":%s,\"long\":%s,\"alti\":%i,\"rxnb\":%u,\"rxok\":%u,\"rxfw\":%u,\"ackr\":%u.0,\"dwnb\":%u,\"txnb\":%u,\"pfrm\":\"%s\",\"mail\":\"%s\",\"desc\":\"%s\"}}",
 		stat_timestamp, clat, clon, (int)alt, cp_nb_rx_rcv, cp_nb_rx_ok, cp_up_pkt_fwd, 0, 0, 0,platform,email,description);
   stat_index += j;
   status_report[stat_index] = 0; 							// add string terminator, for safety
@@ -725,7 +726,7 @@ void sendstat() {
 		Serial.print(F("> "));
 		Serial.println((char *)(status_report+12));			// DEBUG: display JSON stat
 	}
-  
+
   //send the update
   sendUdp(status_report, stat_index);
 
@@ -758,13 +759,13 @@ int receivepacket(char *buff_up) {
         // Divide by 4
         SNR = ( value & 0xFF ) >> 2;
       }
-      
+
       if (sx1272) {
         rssicorr = 139;
       } else {											// Probably SX1276 or RFM95
         rssicorr = 157;
       }
-		
+
 			if (debug>=1) {
 			  Serial.print(F("Packet RSSI: "));
 				Serial.print(readRegister(0x1A)-rssicorr);
@@ -777,14 +778,14 @@ int receivepacket(char *buff_up) {
 				Serial.println();
 				yield();
 			}
-		
+
       int j;
 
 			// XXX Base64 library is nopad. So we may have to add padding characters until
 			// 	length is multiple of 4!
 			int encodedLen = base64_enc_len(receivedbytes);		// max 341
 			base64_encode(b64, message, receivedbytes);			// max 341
-		
+
       //j = bin_to_b64((uint8_t *)message, receivedbytes, (char *)(b64), 341);
       //fwrite(b64, sizeof(char), j, stdout);
 
@@ -804,7 +805,7 @@ int receivepacket(char *buff_up) {
       buff_up[10] = MAC_array[4];
       buff_up[11] = MAC_array[5];
 
-      // start composing datagram with the header 
+      // start composing datagram with the header
       uint8_t token_h = (uint8_t)rand(); 					// random token
       uint8_t token_l = (uint8_t)rand(); 					// random token
       buff_up[1] = token_h;
@@ -823,7 +824,7 @@ int receivepacket(char *buff_up) {
       ++buff_index;
       j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, "\"tmst\":%u", tmst);
       buff_index += j;
-      
+
 	  ftoa((double)freq/1000000,cfreq,6);						// XXX This can be done better
       j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"chan\":%1u,\"rfch\":%1u,\"freq\":%s", 0, 0, cfreq);
       buff_index += j;
@@ -863,7 +864,7 @@ int receivepacket(char *buff_up) {
       }
       memcpy((void *)(buff_up + buff_index), (void *)"BW125\"", 6);
       buff_index += 6;
-      
+
       switch((int)((modemstat & 0xE0) >> 5)) {
             case 1:
                 memcpy((void *)(buff_up + buff_index), (void *)",\"codr\":\"4/5\"", 13);
@@ -912,7 +913,7 @@ int receivepacket(char *buff_up) {
 				Serial.println((char *)(buff_up + 12));		// DEBUG: display JSON payload
 			}
 			return(buff_index);
-		
+
     } // received a message
   } // dio0=1
 	return(-1);
@@ -948,13 +949,13 @@ String stringTime(unsigned long t) {
 	String Days[7]={"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
 
 	if (t==0) { response = " -none- "; return(response); }
-	
+
 	// now() gives seconds since 1970
 	time_t eventTime = now() - ((millis()-t)/1000);
 	byte _hour   = hour(eventTime);
 	byte _minute = minute(eventTime);
 	byte _second = second(eventTime);
-	
+
 	response += Days[weekday(eventTime)-1]; response += " ";
 	response += day(eventTime); response += "-";
 	response += month(eventTime); response += "-";
@@ -983,9 +984,9 @@ void WifiServer(const char *cmd, const char *arg) {
 	String response;
 	char *dup, *pch;
 
-	yield();	
-	if (debug >=2) { 
-		Serial.print(F("WifiServer new client")); 
+	yield();
+	if (debug >=2) {
+		Serial.print(F("WifiServer new client"));
 	}
 
 	// These can be used as a single argument
@@ -993,7 +994,7 @@ void WifiServer(const char *cmd, const char *arg) {
 		debug=atoi(arg); response+=" debug="; response+=arg;
 	}
 	if (strcmp(cmd, "IP")==0) {										// List local IP address
-		response+=" local IP="; 
+		response+=" local IP=";
 		response+=(IPAddress) WiFi.localIP()[0]; response += ".";
 		response+=(IPAddress) WiFi.localIP()[1]; response += ".";
 		response+=(IPAddress) WiFi.localIP()[2]; response += ".";
@@ -1003,26 +1004,26 @@ void WifiServer(const char *cmd, const char *arg) {
 	if (strcmp(cmd, "GETTIME")==0) { response += "gettime tbd"; }	// Get the local time
 	if (strcmp(cmd, "SETTIME")==0) { response += "settime tbd"; }	// Set the local time
 	if (strcmp(cmd, "HELP")==0)    { response += "Display Help Topics"; }
-	if (strcmp(cmd, "RESET")==0)   { response += "Resetting Statistics"; 
+	if (strcmp(cmd, "RESET")==0)   { response += "Resetting Statistics";
 		cp_nb_rx_rcv = 0;
 		cp_nb_rx_ok = 0;
 		cp_up_pkt_fwd = 0;
 	}
 
 	// Do work, fill the webpage
-	delay(15);	
+	delay(15);
 	response +="<!DOCTYPE HTML>";
 	response +="<HTML><HEAD>";
 	response +="<TITLE>ESP8266 1ch Gateway</TITLE>";
 	response +="</HEAD>";
 	response +="<BODY>";
-		
+
 	response +="<h1>ESP Gateway Config:</h1>";
 	response +="Version: "; response+=VERSION;
-	response +="<br>ESP is alive since "; response+=stringTime(1); 
-	response +="<br>Current time is    "; response+=stringTime(millis()); 
+	response +="<br>ESP is alive since "; response+=stringTime(1);
+	response +="<br>Current time is    "; response+=stringTime(millis());
 	response +="<br>";
-		
+
 	response +="<h2>WiFi Config</h2>";
 	response +="<table style=\"max_width: 100%; min-width: 40%; border: 1px solid black; border-collapse: collapse;\" class=\"config_table\">";
 	response +="<tr>";
@@ -1035,7 +1036,7 @@ void WifiServer(const char *cmd, const char *arg) {
 	response +="<tr><td style=\"border: 1px solid black;\">LoRa Router</td><td style=\"border: 1px solid black;\">"; response+=_TTNSERVER; response+="</tr>";
 	response +="<tr><td style=\"border: 1px solid black;\">LoRa Router IP</td><td style=\"border: 1px solid black;\">"; response+=printIP((IPAddress)ttnServer); response+="</tr>";
 	response +="</table>";
-	
+
 	response +="<h2>System Status</h2>";
 	response +="<table style=\"max_width: 100%; min-width: 40%; border: 1px solid black; border-collapse: collapse;\" class=\"config_table\">";
 	response +="<tr>";
@@ -1045,7 +1046,7 @@ void WifiServer(const char *cmd, const char *arg) {
 	response +="<tr><td style=\"border: 1px solid black;\">Free heap</td><td style=\"border: 1px solid black;\">"; response+=ESP.getFreeHeap(); response+="</tr>";
 	response +="<tr><td style=\"border: 1px solid black;\">ESP Chip ID</td><td style=\"border: 1px solid black;\">"; response+=ESP.getChipId(); response+="</tr>";
 	response +="</table>";
-		
+
 	response +="<h2>LoRa Status</h2>";
 	response +="<table style=\"max_width: 100%; min-width: 40%; border: 1px solid black; border-collapse: collapse;\" class=\"config_table\">";
 	response +="<tr>";
@@ -1054,17 +1055,17 @@ void WifiServer(const char *cmd, const char *arg) {
 	response +="</tr>";
 	response +="<tr><td style=\"border: 1px solid black;\">Frequency</td><td style=\"border: 1px solid black;\">"; response+=freq; response+="</tr>";
 	response +="<tr><td style=\"border: 1px solid black;\">Spreading Factor</td><td style=\"border: 1px solid black;\">"; response+=sf; response+="</tr>";
-	response +="<tr><td style=\"border: 1px solid black;\">Gateway ID</td><td style=\"border: 1px solid black;\">";	
+	response +="<tr><td style=\"border: 1px solid black;\">Gateway ID</td><td style=\"border: 1px solid black;\">";
 	response +=String(MAC_array[0],HEX);									// The MAC array is always returned in lowercase
-	response +=String(MAC_array[1],HEX); 
-	response +=String(MAC_array[2],HEX); 
-	response +="ffff"; 
-	response +=String(MAC_array[3],HEX); 
-	response +=String(MAC_array[4],HEX); 
+	response +=String(MAC_array[1],HEX);
+	response +=String(MAC_array[2],HEX);
+	response +="ffff";
+	response +=String(MAC_array[3],HEX);
+	response +=String(MAC_array[4],HEX);
 	response +=String(MAC_array[5],HEX);
 	response+="</tr>";
 	response +="</table>";
-		
+
 	response +="<h2>Statistics</h2>";
 	delay(1);
 	response +="<table style=\"max_width: 100%; min-width: 40%; border: 1px solid black; border-collapse: collapse;\" class=\"config_table\">";
@@ -1076,20 +1077,20 @@ void WifiServer(const char *cmd, const char *arg) {
 	response +="<tr><td style=\"border: 1px solid black;\">Packages OK </td><td style=\"border: 1px solid black;\">"; response +=cp_nb_rx_ok; response+="</tr>";
 	response +="<tr><td style=\"border: 1px solid black;\">Packages Forwarded</td><td style=\"border: 1px solid black;\">"; response +=cp_up_pkt_fwd; response+="</tr>";
 	response +="<tr><td>&nbsp</td><td> </tr>";
-			
+
 	response +="</table>";
 
 	response +="<br>";
 	response +="<h2>Settings</h2>";
 	response +="Click <a href=\"/RESET\">here</a> to reset statistics<br>";
 
-	response +="Debug level is: "; 
-	response += debug; 
+	response +="Debug level is: ";
+	response += debug;
 	response +=" set to: ";
 	response +=" <a href=\"DEBUG=0\">0</a>";
 	response +=" <a href=\"DEBUG=1\">1</a>";
 	response +=" <a href=\"DEBUG=2\">2</a><br>";
-		
+
 	response +="Click <a href=\"/HELP\">here</a> to explain Help and REST options<br>";
 	response +="</BODY></HTML>";
 
@@ -1116,18 +1117,18 @@ void setup () {
 
 	Serial.begin(_BAUDRATE);	// As fast as possible for bus
 
-  Serial.print(F("\r\nBooting "));
-  Serial.println(ARDUINO_BOARD " " __DATE__ " " __TIME__);
+  Serial.print(F("\r\nBooting: "));
+  Serial.println( " " __DATE__ " " __TIME__);
 
 	if (debug>=1) {
-		Serial.print(F("! debug: ")); 
+		Serial.print(F("! debug: "));
 	}
 
   #ifdef WEMOS_LORA_GW
   	rgb_led.Begin();
   	LedRGBOFF();
   #endif
-	
+
 	// Setup WiFi UDP connection. Give it some time ..
 	if (WlanConnect( (char *) _SSID, (char *)_PASS) == WL_CONNECTED) {
 		// If we are here we are connected to WLAN
@@ -1136,14 +1137,14 @@ void setup () {
 			Serial.println("Error UDPconnect");
 		}
 	}
-	 
+
 	WiFi.macAddress(MAC_array);
   for (int i = 0; i < sizeof(MAC_array); ++i){
     sprintf(MAC_char,"%s%02x:",MAC_char,MAC_array[i]);
   }
 	Serial.print("MAC: ");
   Serial.println(MAC_char);
-	
+
 	// Configure IO Pin
   pinMode(ssPin, OUTPUT);
   pinMode(dio0, INPUT);
@@ -1153,10 +1154,10 @@ void setup () {
 	delay(100);
   SetupLoRa();
 	delay(100);
-	
+
 	// We choose the Gateway ID to be the Ethernet Address of our Gateway card
   // display results of getting hardware address
-	// 
+	//
   Serial.print("Gateway ID: ");
   Serial.print(MAC_array[0],HEX);
   Serial.print(MAC_array[1],HEX);
@@ -1175,13 +1176,13 @@ void setup () {
 
 	WiFi.hostByName(_TTNSERVER, ttnServer);					// Use DNS to get server IP once
 	delay(100);
-	
+
 	setupTime();											// Set NTP time host and interval
 	setTime((time_t)getNtpTime());
 	Serial.print("time "); printTime();
 	Serial.println();
 
-#if A_SERVER==1	
+#if A_SERVER==1
 	server.on("/",        []() { WifiServer("","");	      });
 	server.on("/HELP",    []() { WifiServer("HELP","");	  });
 	server.on("/RESET",   []() { WifiServer("RESET","");	});
@@ -1192,45 +1193,45 @@ void setup () {
 	server.begin();											// Start the webserver
 	Serial.print(F("Admin Server started on port "));
 	Serial.println(SERVERPORT);
-#endif	
+#endif
 	Serial.println("---------------------------------");
 
 	// Breathing now set to 1000ms
 	LedRGBSetAnimation(1000, RGB_WIFI);
-	LedRGBOFF(RGB_RF); 
+	LedRGBOFF(RGB_RF);
 
 }
 
 // ----------------------------------------------------------------------------
 // LOOP
 // This is the main program that is executed time and time again.
-// We need to geive way to the bacjend WiFi processing that 
+// We need to geive way to the bacjend WiFi processing that
 // takes place somewhere in the ESP8266 firmware and therefore
 // we include yield() statements at important points.
 //
 // Note: If we spend too much time in user processing functions
 //	and the backend system cannot do its housekeeping, the watchdog
-// function will be executed which means effectively that the 
+// function will be executed which means effectively that the
 // program crashes.
 // ----------------------------------------------------------------------------
 void loop ()
 {
-	static bool led_state ; 
-  bool new_led_state ; 
+	static bool led_state ;
+  bool new_led_state ;
 	int buff_index;
 	char buff_up[TX_BUFF_SIZE]; 						// buffer to compose the upstream packet
-	
+
 	// Receive Lora messages
   if ((buff_index = receivepacket(buff_up)) >= 0) {	// read is successful
 		yield();
   	LedRGBON(COLOR_MAGENTA, RGB_RF, true);
-  	LedRGBSetAnimation(1000, RGB_RF, 1, RGB_ANIM_FADE_OUT);		
+  	LedRGBSetAnimation(1000, RGB_RF, 1, RGB_ANIM_FADE_OUT);
 		sendUdp(buff_up, buff_index);					// We can send to multiple sockets if necessary
 	}
 	else {
 		// No message received
 	}
-	
+
 	// Receive WiFi messages. This is important since the TTN broker will return confirmation
 	// messages on UDP for every message sent by the gateway.
 	int packetSize = Udp.parsePacket();
@@ -1244,7 +1245,7 @@ void loop ()
 		}
   	LedRGBSetAnimation(1000, RGB_WIFI, 1, RGB_ANIM_FADE_OUT);
 	}
-	
+
 	uint32_t nowseconds = (uint32_t) millis() /1000;
   if (nowseconds - lasttime >= 30) {					// Send status every 30 seconds
     sendstat();
@@ -1254,9 +1255,9 @@ void loop ()
 	// Handle the WiFi server part of this sketch. Mainly used for administration of the node
 #if A_SERVER==1
 	server.handleClient();
-#endif	
-	
-	// On board Led blink management 
+#endif
+
+	// On board Led blink management
 	if (WiFi.status()==WL_CONNECTED) {
 	  new_led_state = ((millis() % 1000) < 200) ? LOW:HIGH; // Connected long blink 200ms on each second
 	} else {
