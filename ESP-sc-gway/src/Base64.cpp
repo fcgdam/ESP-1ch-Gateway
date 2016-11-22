@@ -1,4 +1,4 @@
-#include "gBase64.h"
+#include "Base64.h"
 //#include <avr/pgmspace.h>
 
 const char b64_alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"

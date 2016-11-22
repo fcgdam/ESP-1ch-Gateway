@@ -1,17 +1,17 @@
 Single Channel LoRaWAN Gateway
 ==============================
-This repository contains a proof-of-concept implementation of a single
-channel LoRaWAN gateway. It has been tested on the Wemos D1 Mini, using a 
-Semtech SX1276 transceiver (HopeRF RFM95W).
+This repository contains an implementation of a single
+channel LoRaWAN gateway mashed up from several Single Channel Gateway implementations for the 
+ESP8266.
+
+Source Code comes from: [dlarue gateway][1] and [Hallard GW][10].
+
+It has been tested on the Wemos D1 Mini, using a Semtech SX1276 transceiver 
+on a [WeMos-Lora][3] shield and Wemos D1 OLED shield with an SSD1306 display.
 
 The code is for testing and development purposes only, and is not meant 
 for production usage. 
 
-Engine is based on code base of Single Channel gateway for RaspberryPI
-which is developed by Thomas Telkamp. Code was ported and extended to run
-on ESP 8266 mcu and provide RTC, Webserver and DNS services.
-
-Maintained by Maarten Westenberg (mw12554@hotmail.com)
 
 Features
 --------
@@ -36,10 +36,6 @@ Added features if you're using [WeMos-Lora][3] Shield as gateway
 - 1 SSD1306 I2C OLED connector
 - 1 On board push button
 
-Assembled WeMos-Lora Shield
-
-<img src="https://raw.githubusercontent.com/hallard/WeMos-Lora/master/pictures/WeMos-Lora-top-assembled.jpg" alt="Top">  
-<img src="https://raw.githubusercontent.com/hallard/WeMos-Lora/master/pictures/WeMos-Lora-bot-assembled.jpg" alt="Bottom">    
 
 Dependencies
 ------------
@@ -73,7 +69,7 @@ The source files in this repository are made available under the Eclipse
 Public License v1.0, except for the base64 implementation, that has been
 copied from the Semtech Packet Forwader.
 
-
+[1]: https://github.com/dlarue/ESP-1ch-Gateway-v2.0.git
 [2]: https://hallard.me
 [3]: https://github.com/hallard/WeMos-Lora
 [4]: https://github.com/Makuna/NeoPixelBus
@@ -82,3 +78,4 @@ copied from the Semtech Packet Forwader.
 [7]: https://github.com/adamvr/arduino-base64
 [8]: http://things4u.github.io
 [9]: http://things4u.github.io/HardwareGuide/hardware_guide.html
+[10]: https://github.com/hallard/ESP-1ch-Gateway

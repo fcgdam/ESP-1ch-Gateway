@@ -38,14 +38,14 @@
 #define RGB_WIFI  2 /* RGB Led for Wifi is #2 */
 #define RGB_RF    1 /* RGB Led for RF module is #1 */
 
-// The RGB animation state machine 
+// The RGB animation state machine
 typedef enum {
   RGB_ANIM_NONE,
   RGB_ANIM_FADE_IN,
   RGB_ANIM_FADE_OUT,
   RGB_ANIM_BLINK_ON,
   RGB_ANIM_BLINK_OFF,
-} 
+}
 RgbEffectState_e;
 
 #ifdef WEMOS_LORA_GW
@@ -66,9 +66,9 @@ RgbEffectState_e;
       RgbwColor         RgbStartingColor;
       RgbwColor         RgbEndingColor;
       RgbwColor         RgbNoEffectColor;
-      RgbEffectState_e  RgbEffectState;  // current effect of RGB LED 
+      RgbEffectState_e  RgbEffectState;  // current effect of RGB LED
       uint16_t          AnimTime;
-      uint8_t           AnimCount; // Animation counter 
+      uint8_t           AnimCount; // Animation counter
       //uint8_t   IndexPixel;   // general purpose variable used to store pixel index
     };
   #else
@@ -80,12 +80,12 @@ RgbEffectState_e;
       RgbColor          RgbStartingColor;
       RgbColor          RgbEndingColor;
       RgbColor          RgbNoEffectColor;
-      RgbEffectState_e  RgbEffectState;  // current effect of RGB LED 
+      RgbEffectState_e  RgbEffectState;  // current effect of RGB LED
       uint16_t          AnimTime;
-      uint8_t           AnimCount; // Animation counter 
+      uint8_t           AnimCount; // Animation counter
       //uint8_t   IndexPixel;   // general purpose variable used to store pixel index
     };
-  #endif 
+  #endif
 
 	void LedRGBFadeAnimUpdate(const AnimationParam& param);
 	void LedRGBAnimate(bool force=false);
@@ -93,7 +93,7 @@ RgbEffectState_e;
 	void LedRGBOFF(uint16_t led=0);
 	void LedRGBON (uint16_t hue, uint16_t led=0, bool doitnow=false);
 
-	extern uint16_t wifi_led_color ; 
+	extern uint16_t wifi_led_color ;
 	extern MyPixelBus rgb_led;
 	extern MyAnimationState animationState[];
 #else
