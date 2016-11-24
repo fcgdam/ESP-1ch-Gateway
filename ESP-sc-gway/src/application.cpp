@@ -1034,6 +1034,7 @@ void loop ()
 
   process_RGBLeds();            // Process RGB LED animations
 
+  OLEDDisplay_Animate();
   // Handle OTA
   ArduinoOTA.handle();          // Handle OTA.
 }

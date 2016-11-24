@@ -153,10 +153,10 @@ void writeRegister(byte addr, byte value)
     spibuf[0] = addr | 0x80;
     spibuf[1] = value;
     selectreceiver();
-	SPI.beginTransaction(SPISettings(50000, MSBFIRST, SPI_MODE0));
-	SPI.transfer(spibuf[0]);
-	SPI.transfer(spibuf[1]);
-	SPI.endTransaction();
+    SPI.beginTransaction(SPISettings(50000, MSBFIRST, SPI_MODE0));
+    SPI.transfer(spibuf[0]);
+    SPI.transfer(spibuf[1]);
+    SPI.endTransaction();
     unselectreceiver();
 }
 
@@ -347,8 +347,8 @@ void rxLoraModem()
     // Low Noise Amplifier used in receiver
     writeRegister(REG_LNA, LNA_MAX_GAIN);  						// 0x0C, 0x23
 
-	writeRegister(REG_IRQ_FLAGS_MASK, ~IRQ_LORA_RXDONE_MASK);	// Accept no interrupts except RXDONE
-	writeRegister(REG_DIO_MAPPING_1, MAP_DIO0_LORA_RXDONE);		// Set RXDONE interrupt to dio0
+	  writeRegister(REG_IRQ_FLAGS_MASK, ~IRQ_LORA_RXDONE_MASK);	// Accept no interrupts except RXDONE
+	  writeRegister(REG_DIO_MAPPING_1, MAP_DIO0_LORA_RXDONE);		// Set RXDONE interrupt to dio0
 
 	// Set Continous Receive Mode
     opmode(OPMODE_RX);											// 0x80 | 0x05 (listen)
@@ -612,7 +612,11 @@ bool receivePkt(uint8_t *payload)
     int irqflags = readRegister(REG_IRQ_FLAGS);				// 0x12
 
     cp_nb_rx_rcv++;											// Receive statistics counter
-
+    if (loraDebug != 0 ) {
+      Serial.println("Packet received!");
+      Serial.print("Counter is now: ");
+      Serial.println(cp_nb_rx_rcv);
+    }
     //  payload crc=0x20 set
     if((irqflags & 0x20) == 0x20)
     {

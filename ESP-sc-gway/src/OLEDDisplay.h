@@ -3,3 +3,4 @@
 
 void OLEDDisplay_Init( void );
 void OLEDDisplay_println(const char *str);
+void OLEDDisplay_Animate( void );
