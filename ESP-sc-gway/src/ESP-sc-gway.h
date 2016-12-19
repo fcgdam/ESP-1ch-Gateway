@@ -57,7 +57,8 @@
 
 // TTN Server definitions
 //#define _TTNSERVER "croft.thethings.girovito.nl"
-#define _TTNSERVER "router.eu.thethings.network"
+//#define _TTNSERVER "router.eu.thethings.network"
+#define _TTNSERVER "bridge.eu.thethings.network"
 
 // Secondary server to send data. I'm using Node-Red with a UDP Listener Node
 #define _UDPSERVER "192.168.1.17"
@@ -86,8 +87,8 @@
 // If your device already connected to your Wifi, then
 // let as is (stars), it will connect using
 // your previous saved SDK credentials
-#define _SSID     "*****"
-#define _PASS     "*****"
+#define _SSID     "*********"
+#define _PASS     "*********"
 
 // Access point Password
 #define _AP_PASS  "1Ch@n3l-Gateway"
