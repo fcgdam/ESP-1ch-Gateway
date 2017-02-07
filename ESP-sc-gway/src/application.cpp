@@ -75,17 +75,15 @@ IPAddress ttnServer;							// IP Address of thethingsnetwork server
 
 // Wifi definitions
 // Array with SSID and password records. Set WPA size to number of entries in array
-// This is used when WIFI_CREDENTIALS is 1.
-#define WPASIZE 7
-static char const *wpa[WPASIZE][2] = {
-  { "SSID1", "noot"},
-  { "SSID2", "schapen"},
-  { "SSID3", "vuur"},
-  { "SSID4", "wagen"},
-  { "SSID5", "try"},
-  { "SSID6", "noot"},
-  { "SSID7", "hooi"}
+// WIFI Settings:
+#define NUMAPS 4  // Number of available access points
+static char const *APs[NUMAPS][2] = {
+  {"ap1","pwd1"},
+  {"ap2","pwd2"},
+  {"ap3","pwd3"},
+  {"ap4","pwd4"}
 };
+
 
 int debug =  DEBUG;									// Debug level! 0 is no msgs, 1 normal, 2 is extensive
 
@@ -773,31 +771,92 @@ void setup_OLED() {
 
 }
 
-void setup_WIFI() {
-  #ifdef OLED_DISPLAY
-    OLEDDisplay_println("Set WIFI...");
-  #endif
+// void setup_WIFI() {
+//   #ifdef OLED_DISPLAY
+//     OLEDDisplay_println("Set WIFI:");
+//   #endif
+//
+//   Serial.println("Connecting to WIFI...");
+//   // Setup WiFi UDP connection. Give it some time ..
+//   if (WlanConnect( (char *) _SSID, (char *)_PASS) == WL_CONNECTED) {
+//     // If we are here we are connected to WLAN
+//     // So now test the UDP function
+//     #ifdef OLED_DISPLAY
+//       OLEDDisplay_println("WIFI OK!");
+//     #endif
+//
+//     if (!UDPconnect()) {
+//       Serial.println("Error UDPconnect");
+//     }
+//   }
+//
+//   WiFi.macAddress(MAC_address);
+//   for (int i = 0; i < sizeof(MAC_address); ++i){
+//     sprintf(MAC_char,"%s%02x:",MAC_char,MAC_address[i]);
+//   }
+//   Serial.print("MAC: ");
+//   Serial.println(MAC_char);
+// }
 
-  Serial.println("Connecting to WIFI...");
-  // Setup WiFi UDP connection. Give it some time ..
-  if (WlanConnect( (char *) _SSID, (char *)_PASS) == WL_CONNECTED) {
-    // If we are here we are connected to WLAN
-    // So now test the UDP function
+void setup_WIFI() {
+    bool connected = false;
+    char *ssid;
+    char *pwd;
+    int cntAP = 0;
+    int tries = 0;
+    String out;
+
     #ifdef OLED_DISPLAY
-      OLEDDisplay_println("WIFI OK!");
+      OLEDDisplay_println("WIFI:");
     #endif
 
-    if (!UDPconnect()) {
-      Serial.println("Error UDPconnect");
-    }
-  }
+    Serial.println("Connecting to WIFI...");
+    WiFi.mode(WIFI_STA);
 
-  WiFi.macAddress(MAC_address);
-  for (int i = 0; i < sizeof(MAC_address); ++i){
-    sprintf(MAC_char,"%s%02x:",MAC_char,MAC_address[i]);
-  }
-  Serial.print("MAC: ");
-  Serial.println(MAC_char);
+    while ( !connected ) {
+      ssid = (char *)APs[cntAP][0];
+      pwd  = (char *)APs[cntAP][1];
+      Serial.print("Connecting to: ");
+      Serial.println(ssid);
+
+      out = "W: " + String(ssid);
+      OLEDDisplay_printxy( 0 , 8 , out.c_str() );
+
+      out = "T: " + String(tries);
+      OLEDDisplay_printxy( 0 , 32, out.c_str() );
+
+      WiFi.begin(ssid, pwd );
+      if (WiFi.waitForConnectResult() != WL_CONNECTED) {
+        Serial.println("Connection Failed! Trying next AP...");
+        Serial.print("Number of tries: ");
+        Serial.println(tries);
+
+        cntAP++;
+        tries++;
+        if (cntAP == NUMAPS )
+          cntAP = 0;
+
+        delay(1000);
+        yield();
+      } else
+        connected = true;
+     }
+
+      #ifdef OLED_DISPLAY
+          OLEDDisplay_Clear();
+          OLEDDisplay_println("WIFI OK!");
+      #endif
+
+      if (!UDPconnect()) {
+          Serial.println("Error UDPconnect");
+      }
+
+      WiFi.macAddress(MAC_address);
+      for (int i = 0; i < sizeof(MAC_address); ++i){
+        sprintf(MAC_char,"%s%02x:",MAC_char,MAC_address[i]);
+      }
+      Serial.print("MAC: ");
+      Serial.println(MAC_char);
 }
 
 void setup_LORA() {

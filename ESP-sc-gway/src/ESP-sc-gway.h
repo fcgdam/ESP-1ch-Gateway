@@ -96,7 +96,7 @@
 
 // SX1276 - ESP8266 connections
 #ifdef WEMOS_LORA_GW
-  #define DEFAULT_PIN_SS    16          // GPIO16, D0
+  #define DEFAULT_PIN_SS    16          // GPIO16, D0 - Slave Select pin
   #define DEFAULT_PIN_DIO0  15          // GPIO15, D8
   #define DEFAULT_PIN_RST   NOT_A_PIN   // Unused
 #else

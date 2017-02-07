@@ -35,7 +35,19 @@ void OLEDDisplay_Init() {
   oled.clear(PAGE);
 }
 
+void OLEDDisplay_Clear() {
+  oled.clear(ALL);
+  oled.display();
+  oled.clear(PAGE);
+}
+
 void OLEDDisplay_println(const char *str) {
+  oled.println(str);
+  oled.display();
+}
+
+void OLEDDisplay_printxy(int x, int y, const char *str) {
+  oled.setCursor( x, y);
   oled.println(str);
   oled.display();
 }
