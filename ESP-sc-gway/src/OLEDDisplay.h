@@ -6,3 +6,5 @@ void OLEDDisplay_Clear(void);
 void OLEDDisplay_println(const char *str);
 void OLEDDisplay_printxy(int x, int y,const char *str);
 void OLEDDisplay_Animate( void );
+
+void icon();

@@ -72,17 +72,21 @@ char description[64] = _DESCRIPTION;				// used for free form description
 
 IPAddress ntpServer;							// IP address of NTP_TIMESERVER
 IPAddress ttnServer;							// IP Address of thethingsnetwork server
+IPAddress gwDevice;               // Local IP of the gateway device
 
 // Wifi definitions
 // Array with SSID and password records. Set WPA size to number of entries in array
 // WIFI Settings:
-#define NUMAPS 4  // Number of available access points
-static char const *APs[NUMAPS][2] = {
-  {"ap1","pwd1"},
-  {"ap2","pwd2"},
-  {"ap3","pwd3"},
-  {"ap4","pwd4"}
-};
+// #define NUMAPS 4  // Number of available access points
+// static char const *APs[NUMAPS][2] = {
+//   {"ap1","pwd1"},
+//   {"ap2","pwd2"},
+//   {"ap3","pwd3"},
+//   {"ap4","pwd4"}
+// };
+#include "secrets.h" // Comment out this line and uncomment the above lines to
+                     // configure your access points.
+                     // This file is gitignored
 
 
 int debug =  DEBUG;									// Debug level! 0 is no msgs, 1 normal, 2 is extensive
@@ -105,6 +109,8 @@ uint32_t lasttime;
 uint32_t lastTimeSt;
 uint8_t  buff_up[TX_BUFF_SIZE];
 uint8_t  buff_down[RX_BUFF_SIZE];
+
+unsigned long WIFImillis = 0 ; // for displaying RSSI on the display
 
 // ----------------------------------------------------------------------------
 // DIE is not use actively in the source code anymore.
@@ -819,6 +825,7 @@ void setup_WIFI() {
       Serial.print("Connecting to: ");
       Serial.println(ssid);
 
+      OLEDDisplay_printxy( 0 , 8 , "W:                     " );
       out = "W: " + String(ssid);
       OLEDDisplay_printxy( 0 , 8 , out.c_str() );
 
@@ -844,7 +851,7 @@ void setup_WIFI() {
 
       #ifdef OLED_DISPLAY
           OLEDDisplay_Clear();
-          OLEDDisplay_println("WIFI OK!");
+          OLEDDisplay_printxy(0,0,"WIFI OK!");
       #endif
 
       if (!UDPconnect()) {
@@ -857,11 +864,15 @@ void setup_WIFI() {
       }
       Serial.print("MAC: ");
       Serial.println(MAC_char);
+
+      gwDevice = WiFi.localIP();
+      Serial.print("GW IP: ");
+      Serial.println( gwDevice.toString());
 }
 
 void setup_LORA() {
   #ifdef OLED_DISPLAY
-    OLEDDisplay_println("Set LORA...");
+    OLEDDisplay_println("LORA MDM");
   #endif
 
   // Configure IO Pin
@@ -874,6 +885,10 @@ void setup_LORA() {
   delay(100);
   SetupLoRa();
   delay(100);
+
+  #ifdef OLED_DISPLAY
+    OLEDDisplay_println("LORA OK!");
+  #endif
 }
 
 void display_Config() {
@@ -896,9 +911,7 @@ void display_Config() {
   Serial.print((double)LORA_freq/1000000);
   Serial.println(" Mhz.");
 
-  #ifdef OLED_DISPLAY
-    OLEDDisplay_println("LORA OK!");
-  #endif
+
 }
 
 void setup_TTNServer() {
@@ -986,20 +999,20 @@ void process_GateWay() {
   // stat PUSH_DATA message (*2, par. 4)
 	//
 	nowseconds = (uint32_t) millis() /1000;
-    if (nowseconds - stattime >= _STAT_INTERVAL) {		// Wake up every xx seconds
+  if (nowseconds - stattime >= _STAT_INTERVAL) {		// Wake up every xx seconds
         sendstat();										// Show the status message and send to server
 		stattime = nowseconds;
-    }
+  }
 
 	yield();
 
 	// send PULL_DATA message (*2, par. 4)
 	//
 	nowseconds = (uint32_t) millis() /1000;
-    if (nowseconds - pulltime >= _PULL_INTERVAL) {		// Wake up every xx seconds
+  if (nowseconds - pulltime >= _PULL_INTERVAL) {		// Wake up every xx seconds
         pullData();										// Send PULL_DATA message to server
-		pulltime = nowseconds;
-    }
+	    	pulltime = nowseconds;
+  }
 
 }
 
@@ -1027,6 +1040,19 @@ void process_WebAdminServer() {
   #endif
 }
 
+void process_statusBar() {
+  unsigned long currentmillis = millis();
+
+  if ( currentmillis - WIFImillis > 2500 ) {
+    WIFImillis = currentmillis;
+    long rssi = WiFi.RSSI();
+    Serial.print("RSSI: ");
+    Serial.println( rssi );
+  }
+
+}
+
+
 // ========================================================================
 // MAIN PROGRAM (SETUP AND LOOP)
 
@@ -1041,7 +1067,7 @@ void setup () {
   Serial.println( " " __DATE__ " " __TIME__);
 
 	if (debug >= 1) {
-		Serial.println(F("! debug: "));
+		Serial.println(F("! debug is ON !"));
 	}
 
   setup_RGBLeds();
@@ -1056,7 +1082,7 @@ void setup () {
 
   setup_TTNServer();
 
-  setup_NTPServer();
+  //setup_NTPServer();
 
   setup_WebAdminServer();
 
@@ -1096,4 +1122,6 @@ void loop ()
   OLEDDisplay_Animate();
   // Handle OTA
   ArduinoOTA.handle();          // Handle OTA.
+
+  process_statusBar();
 }

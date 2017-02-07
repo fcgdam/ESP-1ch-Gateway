@@ -10,6 +10,8 @@ MicroOLED oled(OLED_PIN_RESET, OLED_I2C_ADR);
 int SCREEN_WIDTH  = oled.getLCDWidth();
 int SCREEN_HEIGHT = oled.getLCDHeight();
 
+// For accessing the screen buffer directly
+uint8_t *screen = NULL;
 
 // Lora Counters for statistics
 uint32_t OL_LORA_rx_rcv;
@@ -33,6 +35,9 @@ void OLEDDisplay_Init() {
   oled.clear(ALL);
   oled.display();
   oled.clear(PAGE);
+
+  screen = oled.getScreenBuffer();
+
 }
 
 void OLEDDisplay_Clear() {
@@ -76,5 +81,21 @@ void OLEDDisplay_Animate() {
     }
 
   yield();
+
+}
+
+// Draws an RSSI icon
+// RSSI > -65  -> Good
+// RSSI > -70 < -65  -> OK
+// RSSI > -80 < -70  -> BAD
+// RSSI < -80 -> Very BAD
+void OLEDRSSI_Icon(int x , int y , long rssi) {
+  int i;
+
+  for ( i = 0 ; i < 16 ; i++  ) {
+    screen[i] = i * 2 ;
+  }
+
+  oled.display();
 
 }
