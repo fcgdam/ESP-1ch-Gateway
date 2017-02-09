@@ -1041,14 +1041,22 @@ void process_WebAdminServer() {
 }
 
 void process_statusBar() {
-  unsigned long currentmillis = millis();
+  // unsigned long currentmillis = millis();
+  //
+  // if ( currentmillis - WIFImillis > 2500 ) {
+  //   WIFImillis = currentmillis;
+  //   long rssi = WiFi.RSSI();
+  //   Serial.print("RSSI: ");
+  //   Serial.println( rssi );
+  // }
 
-  if ( currentmillis - WIFImillis > 2500 ) {
-    WIFImillis = currentmillis;
-    long rssi = WiFi.RSSI();
-    Serial.print("RSSI: ");
-    Serial.println( rssi );
-  }
+  // Let's print time
+  const char * DaysNames[] ={"Su","Mo","Tu","We","Th","Fr","Sa"};
+  //Serial.printf("%s %02d:%02d:%02d", DaysNames[weekday()-1], hour(), minute(), second() );
+  OLEDDisplay_SetTime(  DaysNames[weekday()-1] , hour(), minute() );
+  OLEDDisplay_SetRSSI(WiFi.RSSI());
+
+  OLEDDisplay_Animate();
 
 }
 
@@ -1082,7 +1090,7 @@ void setup () {
 
   setup_TTNServer();
 
-  //setup_NTPServer();
+  setup_NTPServer();
 
   setup_WebAdminServer();
 
@@ -1119,9 +1127,9 @@ void loop ()
 
   process_RGBLeds();            // Process RGB LED animations
 
-  OLEDDisplay_Animate();
+  process_statusBar();
+
   // Handle OTA
   ArduinoOTA.handle();          // Handle OTA.
 
-  process_statusBar();
 }

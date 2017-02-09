@@ -22,6 +22,12 @@ uint32_t OL_LORA_pkt_fwd;
 
 uint32_t displayseconds;
 
+const char *Cday;
+int Chour;
+int Cminute;
+int Csecond;
+long CRSSI;
+
 void OLED_getLoraStats() {
   OL_LORA_rx_rcv   = getLoraRXRCV();
   OL_LORA_rx_ok    = getLoraRXOK();
@@ -59,6 +65,7 @@ void OLEDDisplay_printxy(int x, int y, const char *str) {
 
 void OLEDDisplay_Status() {
   OLED_getLoraStats();
+
   oled.setCursor(0,8);
   oled.print("Rx: ");
   oled.println(OL_LORA_rx_rcv);
@@ -69,19 +76,15 @@ void OLEDDisplay_Status() {
 
 }
 
-void OLEDDisplay_Animate() {
-  uint32_t nowseconds = (uint32_t) millis() /1000;
-
-  nowseconds = (uint32_t) millis() /1000;
-    if (nowseconds - displayseconds >= 2 ) {		// Wake up every xx seconds
-        oled.clear(PAGE);
-        OLEDDisplay_Status();
-        oled.display();
-        displayseconds = nowseconds;
-    }
-
-  yield();
-
+void OLEDDisplay_Time() {
+  oled.setCursor( 32 , 0 );
+  //oled.print(Cday);
+  //oled.print(" ");
+  if ( Chour < 10 ) oled.print("0"); // Print leading zero
+  oled.print( Chour );
+  oled.print(":");
+  if ( Cminute < 10 ) oled.print("0"); // Print leading zero
+  oled.print( Cminute );
 }
 
 // Draws an RSSI icon
@@ -96,6 +99,33 @@ void OLEDRSSI_Icon(int x , int y , long rssi) {
     screen[i] = i * 2 ;
   }
 
-  oled.display();
+}
 
+
+void OLEDDisplay_Animate() {
+  uint32_t nowseconds = (uint32_t) millis() /1000;
+
+  nowseconds = (uint32_t) millis() /1000;
+  if (nowseconds - displayseconds >= 1 ) {		// Wake up every xx seconds
+        oled.clear(PAGE);
+        OLEDDisplay_Status();
+        OLEDDisplay_Time();
+
+        oled.display();
+        displayseconds = nowseconds;
+  }
+
+  yield();
+
+}
+
+void OLEDDisplay_SetTime(const char* day, int hour, int min ) {
+  Cday = day;
+  Chour = hour;
+  Cminute = min;
+
+}
+
+void OLEDDisplay_SetRSSI(long RSSI) {
+  CRSSI = RSSI;
 }
