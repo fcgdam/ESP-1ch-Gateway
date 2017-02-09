@@ -27,6 +27,7 @@ int Chour;
 int Cminute;
 int Csecond;
 long CRSSI;
+bool beat = true;
 
 void OLED_getLoraStats() {
   OL_LORA_rx_rcv   = getLoraRXRCV();
@@ -82,21 +83,46 @@ void OLEDDisplay_Time() {
   //oled.print(" ");
   if ( Chour < 10 ) oled.print("0"); // Print leading zero
   oled.print( Chour );
-  oled.print(":");
+  if ( beat )
+    oled.print(":");
+  else
+    oled.print(" ");
   if ( Cminute < 10 ) oled.print("0"); // Print leading zero
   oled.print( Cminute );
 }
 
 // Draws an RSSI icon
 // RSSI > -65  -> Good
+const int wGood[] = { 0x43 , 0x44 , 0x02 , 0x74 , 0x73 , 0x00 , 0x7F, 0x7F};
 // RSSI > -70 < -65  -> OK
+const int wOk[] = { 0x43 , 0x44 , 0x02 , 0x74 , 0x73 , 0x00 , 0x7C, 0x00};
 // RSSI > -80 < -70  -> BAD
-// RSSI < -80 -> Very BAD
-void OLEDRSSI_Icon(int x , int y , long rssi) {
-  int i;
+const int wBad[] = { 0x43 , 0x44 , 0x02 , 0x74 , 0x73 , 0x00 , 0x00, 0x00};
+// RSSI < -80 -> Very BAD - Icon with blinking !
+const int wVBad1[] = { 0x43 , 0x44 , 0x02 , 0x04 , 0x03 , 0x00 , 0x00, 0x5C};
+const int wVBad2[] = { 0x43 , 0x44 , 0x02 , 0x04 , 0x03 , 0x00 , 0x00, 0x00};
 
-  for ( i = 0 ; i < 16 ; i++  ) {
-    screen[i] = i * 2 ;
+void OLEDRSSI_Icon() {
+  int i , j = 0;
+  int *graph;
+
+  if ( CRSSI > - 65 )
+    graph = (int *)&wGood;
+  else
+    if ( CRSSI > -70 )
+      graph = (int *)&wOk;
+    else
+      if ( CRSSI > -80 )
+        graph = (int *)&wBad;
+      else
+        if ( beat )
+          graph = (int *)&wVBad1;
+        else
+          graph = (int *)&wVBad2;
+
+  for ( i = 0 ; i < 8 ; i++  ) { // Right now the icon is on the top left (i=0)
+    screen[i] = graph[j];
+    j++;
   }
 
 }
@@ -108,6 +134,9 @@ void OLEDDisplay_Animate() {
   nowseconds = (uint32_t) millis() /1000;
   if (nowseconds - displayseconds >= 1 ) {		// Wake up every xx seconds
         oled.clear(PAGE);
+
+        OLEDRSSI_Icon();
+
         OLEDDisplay_Status();
         OLEDDisplay_Time();
 
@@ -115,6 +144,7 @@ void OLEDDisplay_Animate() {
         displayseconds = nowseconds;
   }
 
+  beat = !beat;
   yield();
 
 }
