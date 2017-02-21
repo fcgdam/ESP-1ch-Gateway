@@ -78,7 +78,7 @@ void OLEDDisplay_Status() {
 }
 
 void OLEDDisplay_Time() {
-  oled.setCursor( 32 , 0 );
+  oled.setCursor( 0 , 0 );
   //oled.print(Cday);
   //oled.print(" ");
   if ( Chour < 10 ) oled.print("0"); // Print leading zero
@@ -103,8 +103,10 @@ const int wVBad1[] = { 0x43 , 0x44 , 0x02 , 0x04 , 0x03 , 0x00 , 0x00, 0x5C};
 const int wVBad2[] = { 0x43 , 0x44 , 0x02 , 0x04 , 0x03 , 0x00 , 0x00, 0x00};
 
 void OLEDRSSI_Icon() {
+  int pos = 56 ; // Byte position for icon
   int i , j = 0;
   int *graph;
+
 
   if ( CRSSI > - 65 )
     graph = (int *)&wGood;
@@ -120,7 +122,7 @@ void OLEDRSSI_Icon() {
         else
           graph = (int *)&wVBad2;
 
-  for ( i = 0 ; i < 8 ; i++  ) { // Right now the icon is on the top left (i=0)
+  for ( i = pos ; i < pos+8 ; i++  ) { // Right now the icon is on the top right (i=72)
     screen[i] = graph[j];
     j++;
   }
@@ -136,9 +138,9 @@ void OLEDDisplay_Animate() {
         oled.clear(PAGE);
 
         OLEDRSSI_Icon();
+        OLEDDisplay_Time();
 
         OLEDDisplay_Status();
-        OLEDDisplay_Time();
 
         oled.display();
         displayseconds = nowseconds;

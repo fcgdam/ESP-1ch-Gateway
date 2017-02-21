@@ -1090,7 +1090,7 @@ void setup () {
 
   setup_TTNServer();
 
-  setup_NTPServer();
+  //setup_NTPServer();
 
   setup_WebAdminServer();
 
