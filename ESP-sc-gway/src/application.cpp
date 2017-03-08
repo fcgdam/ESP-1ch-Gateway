@@ -562,11 +562,11 @@ void sendUdp(uint8_t * msg, int length) {
 
     // Send data to the secondary server.
     #ifdef SERVER2
-    Serial.print("Sending packet to secondary server...");
-    Serial.print( SERVER2 );
-    Serial.print(":");
-    Serial.println(PORT2);
-		delay(1);
+    // Serial.print("Sending packet to secondary server...");
+    // Serial.print( SERVER2 );
+    // Serial.print(":");
+    // Serial.println(PORT2);
+		// delay(1);
 		Udp.beginPacket((char *)SERVER2, (int) PORT2);
 
 		if ((l = Udp.write((char *)msg, length)) != length) {
@@ -675,7 +675,7 @@ void pullData() {
 
     pullDataReq[pullIndex] = 0; 							// add string terminator, for safety
 
-    if (debug>= 2) {
+    //if (debug>= 2) {
 		  Serial.print(F("PKT_PULL_DATA request: <"));
 		  Serial.print(pullIndex);
 		  Serial.print(F("> "));
@@ -684,7 +684,7 @@ void pullData() {
 			  Serial.print(':');
 		  }
 		  Serial.println();
-	  }
+	  //}
     //send the update
     sendUdp(pullDataReq, pullIndex);
 }
@@ -695,13 +695,85 @@ void pullData() {
 // data.
 // Parameter is socketr to TX to
 // ----------------------------------------------------------------------------
+// void sendstat() {
+//
+//     uint8_t status_report[STATUS_SIZE]; 					// status report as a JSON object
+//     char stat_timestamp[32];								// XXX was 24
+//     time_t t;
+// 	  char clat[12]={0};
+// 	  char clon[12]={0};
+//
+//     int stat_index=0;
+//
+//     // pre-fill the data buffer with fixed fields
+//     status_report[0]  = PROTOCOL_VERSION;					// 0x01
+//     status_report[3]  = PKT_PUSH_DATA;						// 0x00
+//
+// 	  // READ MAC ADDRESS OF ESP8266
+//     status_report[4]  = MAC_address[0];
+//     status_report[5]  = MAC_address[1];
+//     status_report[6]  = MAC_address[2];
+//     status_report[7]  = 0xFF;
+//     status_report[8]  = 0xFF;
+//     status_report[9]  = MAC_address[3];
+//     status_report[10] = MAC_address[4];
+//     status_report[11] = MAC_address[5];
+//
+//     uint8_t token_h   = (uint8_t)rand(); 					// random token
+//     uint8_t token_l   = (uint8_t)rand();					// random token
+//     status_report[1]  = token_h;
+//     status_report[2]  = token_l;
+//     stat_index = 12;										// 12-byte header
+//
+//     t = now();												// get timestamp for statistics
+//
+// 	  sprintf(stat_timestamp, "%d-%d-%2d %d:%d:%02d CET", year(),month(),day(),hour(),minute(),second());
+// 	  yield();
+//
+// 	  ftoa(lat,clat,5);										// Convert lat to char array with 4 decimals
+// 	  ftoa(lon,clon,5);										// As Arduino CANNOT prints floats
+//
+// 	  // Build the Status message in JSON format, XXX Split this one up...
+// 	  delay(1);
+//
+//     getLoraStats();
+//
+//     int j = snprintf((char *)(status_report + stat_index), STATUS_SIZE-stat_index,
+// 		"{\"stat\":{\"time\":\"%s\",\"lati\":%s,\"long\":%s,\"alti\":%i,\"rxnb\":%u,\"rxok\":%u,\"rxfw\":%u,\"ackr\":%u.0,\"dwnb\":%u,\"txnb\":%u,\"pfrm\":\"%s\",\"mail\":\"%s\",\"desc\":\"%s\"}}",
+// 		stat_timestamp, clat, clon, (int)alt, LORA_rx_rcv, LORA_rx_ok, LORA_pkt_fwd, 0, 0, 0,platform,email,description);
+//
+// 	  yield();												// Give way to the internal housekeeping of the ESP8266
+// 	  if (debug >=1) { delay(1); }
+//
+//     stat_index += j;
+//     status_report[stat_index] = 0; 							// add string terminator, for safety
+//
+//     //if (debug>=2) {
+// 	    Serial.print(F("stat update: <"));
+// 	    Serial.print(stat_index);
+// 	    Serial.print(F("> "));
+// 	    Serial.println((char *)(status_report+12));			// DEBUG: display JSON stat
+//
+// 		  // for (int i=0; i < stat_index; i++) {
+// 			//   Serial.print(status_report[i],HEX);				// DEBUG: display JSON stat
+// 			//   Serial.print(':');
+// 		  // }
+// 		  // Serial.println();
+// 	  //}
+//
+//     //send the update
+//     // delay(1);
+//     sendUdp(status_report, stat_index);
+//     return;
+//   }
+
 void sendstat() {
 
     uint8_t status_report[STATUS_SIZE]; 					// status report as a JSON object
     char stat_timestamp[32];								// XXX was 24
     time_t t;
-	  char clat[12]={0};
-	  char clon[12]={0};
+	char clat[10]={0};
+	char clon[10]={0};
 
     int stat_index=0;
 
@@ -709,7 +781,7 @@ void sendstat() {
     status_report[0]  = PROTOCOL_VERSION;					// 0x01
     status_report[3]  = PKT_PUSH_DATA;						// 0x00
 
-	  // READ MAC ADDRESS OF ESP8266
+	// READ MAC ADDRESS OF ESP8266, and return unique Gateway ID consisting of MAC address and 2bytes 0xFF
     status_report[4]  = MAC_address[0];
     status_report[5]  = MAC_address[1];
     status_report[6]  = MAC_address[2];
@@ -727,39 +799,39 @@ void sendstat() {
 
     t = now();												// get timestamp for statistics
 
-	  sprintf(stat_timestamp, "%d-%d-%2d %d:%d:%02d CET", year(),month(),day(),hour(),minute(),second());
-	  yield();
+	// XXX Using CET as the current timezone. Change to your timezone
+	sprintf(stat_timestamp, "%04d-%02d-%02d %02d:%02d:%02d CET", year(),month(),day(),hour(),minute(),second());
+	yield();
 
-	  ftoa(lat,clat,5);										// Convert lat to char array with 4 decimals
-	  ftoa(lon,clon,5);										// As Arduino CANNOT prints floats
+	ftoa(lat,clat,4);										// Convert lat to char array with 4 decimals
+	ftoa(lon,clon,4);										// As Arduino CANNOT prints floats
 
-	  // Build the Status message in JSON format, XXX Split this one up...
-	  delay(1);
-
-    getLoraStats();
+	// Build the Status message in JSON format, XXX Split this one up...
+	delay(1);
 
     int j = snprintf((char *)(status_report + stat_index), STATUS_SIZE-stat_index,
 		"{\"stat\":{\"time\":\"%s\",\"lati\":%s,\"long\":%s,\"alti\":%i,\"rxnb\":%u,\"rxok\":%u,\"rxfw\":%u,\"ackr\":%u.0,\"dwnb\":%u,\"txnb\":%u,\"pfrm\":\"%s\",\"mail\":\"%s\",\"desc\":\"%s\"}}",
 		stat_timestamp, clat, clon, (int)alt, LORA_rx_rcv, LORA_rx_ok, LORA_pkt_fwd, 0, 0, 0,platform,email,description);
 
-	  yield();												// Give way to the internal housekeeping of the ESP8266
-	  if (debug >=1) { delay(1); }
-
+	yield();												// Give way to the internal housekeeping of the ESP8266
+	if (debug >=1) { delay(1); }
     stat_index += j;
     status_report[stat_index] = 0; 							// add string terminator, for safety
 
     if (debug>=2) {
-	    Serial.print(F("stat update: <"));
-	    Serial.print(stat_index);
-	    Serial.print(F("> "));
-	    Serial.println((char *)(status_report+12));			// DEBUG: display JSON stat
-    }
+		Serial.print(F("stat update: <"));
+		Serial.print(stat_index);
+		Serial.print(F("> "));
+		Serial.println((char *)(status_report+12));			// DEBUG: display JSON stat
+	}
 
     //send the update
-    // delay(1);
+	// delay(1);
     sendUdp(status_report, stat_index);
-    return;
-  }
+	return;
+}
+
+
 
 // Segregated setup functions
 
@@ -1091,7 +1163,7 @@ void setup () {
 
   setup_TTNServer();
 
-  //setup_NTPServer();
+  setup_NTPServer();
 
   setup_WebAdminServer();
 
