@@ -74,9 +74,10 @@
 #define _DESCRIPTION "ESP Gateway"
 #define _EMAIL "set@email.com"
 #define _PLATFORM "ESP8266"
-#define _LAT 52.0000000
-#define _LON 6.00000000
-#define _ALT 0
+// Defined on secrets.h
+//#define _LAT 52.0000000
+//#define _LON 6.00000000
+//#define _ALT 0
 
 // WiFi definitions
 
@@ -110,7 +111,7 @@
 #define SERVERPORT 8080   // local webserver port
 
 #define A_MAXBUFSIZE 192  // Must be larger than 128, but small enough to work
-#define _BAUDRATE 115200  // Works for debug messages to serial momitor (if attached).
+#define _BAUDRATE 460800  // Works for debug messages to serial momitor (if attached).
 
 // ntp
 #define NTP_TIMESERVER "pt.pool.ntp.org"  // Country and region specific

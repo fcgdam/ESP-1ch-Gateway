@@ -23,6 +23,7 @@
 
 using namespace std;
 
+#include "secrets.h"
 #include <sys/time.h>
 #include <SPI.h>
 #include <ESP8266WiFi.h>
