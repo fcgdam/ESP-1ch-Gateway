@@ -55,7 +55,7 @@ byte receivedbytes;
 uint32_t lastTmst = 0;
 uint8_t message[256];
 char b64[256];
-uint8_t MAC_array[6];
+extern uint8_t MAC_address[6];
 
 // Set parameters
 void setLoraModem( int _ssPin , int _dio0, int _dio1, int _dio2, int _rst, int _sf, bool _sx1272 ) {
@@ -845,14 +845,14 @@ int receivePacket(uint8_t * buff_up) {
             buff_up[3] = PKT_PUSH_DATA;							// 0x00
 
 			// READ MAC ADDRESS OF ESP8266, and insert 0xFF 0xFF in the middle
-            buff_up[4]  = MAC_array[0];
-            buff_up[5]  = MAC_array[1];
-            buff_up[6]  = MAC_array[2];
+            buff_up[4]  = MAC_address[0];
+            buff_up[5]  = MAC_address[1];
+            buff_up[6]  = MAC_address[2];
             buff_up[7]  = 0xFF;
             buff_up[8]  = 0xFF;
-            buff_up[9]  = MAC_array[3];
-            buff_up[10] = MAC_array[4];
-            buff_up[11] = MAC_array[5];
+            buff_up[9]  = MAC_address[3];
+            buff_up[10] = MAC_address[4];
+            buff_up[11] = MAC_address[5];
 
             // start composing datagram with the header
             uint8_t token_h = (uint8_t)rand(); 					// random token
