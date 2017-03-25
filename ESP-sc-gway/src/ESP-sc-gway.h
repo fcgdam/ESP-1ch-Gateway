@@ -46,7 +46,7 @@
  #define STATISTICS 1			// Gather statistics on sensor and Wifi status
 
  // Set the Gateway Settings
- #define _SPREADING  SF11						// We receive and sent on this Spreading Factor (only)
+ #define _SPREADING  SF9						// We receive and sent on this Spreading Factor (only)
  #define _LOCUDPPORT 1700						// Often 1701 is used for upstream comms
 
  // The Gateway Listen frequency is set on loramodem.h.

@@ -510,7 +510,7 @@ int WlanConnect(char * wifi_ssid, char * wifi_pass) {
 
   #endif
 
-  setupHandleOTA();
+
 
   return ret;
 }
@@ -1166,6 +1166,8 @@ void setup () {
   setup_NTPServer();
 
   setup_WebAdminServer();
+
+  setupHandleOTA();
 
 	Serial.println("---------------------------------");
 
