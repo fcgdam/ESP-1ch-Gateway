@@ -9,3 +9,5 @@ void OLEDDisplay_Animate( void );
 
 void OLEDDisplay_SetTime(const char*, int, int );
 void OLEDDisplay_SetRSSI(long);
+
+void OLED_setIP2Display(String ip);

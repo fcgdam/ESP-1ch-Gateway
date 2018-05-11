@@ -22,6 +22,10 @@ uint32_t OL_LORA_pkt_fwd;
 
 uint32_t displayseconds;
 
+int cycledisplay = 0;
+String gwIP = "10.1.1.1";
+String gwBR = "460800";
+
 const char *Cday;
 int Chour;
 int Cminute;
@@ -35,6 +39,10 @@ void OLED_getLoraStats() {
   OL_LORA_rx_bad   = getLoraRXBAD();
   OL_LORA_rx_nocrc = getLoraRXNOCRC();
   OL_LORA_pkt_fwd  = getLoraPKTFWD();
+}
+
+void OLED_setIP2Display(String ip) {
+  gwIP = ip;
 }
 
 void OLEDDisplay_Init() {
@@ -75,6 +83,18 @@ void OLEDDisplay_Status() {
   oled.print("Ok: ");
   oled.println(OL_LORA_rx_ok);
 
+}
+
+void OLEDDisplay_IPBD() {
+  // Displays IP and Baudrate on the displaying
+  // This is to prevent burning of the oled...
+  oled.setCursor(0,0);
+  oled.print("IP: ");
+  oled.setCursor(0,8);
+  oled.println(gwIP);
+  oled.setCursor(0,24);
+  oled.println("BaudRate:");
+  oled.println(gwBR);
 }
 
 void OLEDDisplay_Time() {
@@ -135,14 +155,22 @@ void OLEDDisplay_Animate() {
 
   nowseconds = (uint32_t) millis() /1000;
   if (nowseconds - displayseconds >= 1 ) {		// Wake up every xx seconds
-        oled.clear(PAGE);
+        if ( cycledisplay == 0 ) {
+          oled.clear(PAGE);
 
-        OLEDRSSI_Icon();
-        OLEDDisplay_Time();
+          OLEDRSSI_Icon();
+          OLEDDisplay_Time();
 
-        OLEDDisplay_Status();
+          OLEDDisplay_Status();
+          oled.display();
+        } else {
+          oled.clear(PAGE);
+          OLEDDisplay_IPBD();
+          oled.display();
+        }
+        cycledisplay++;
+        cycledisplay = cycledisplay % 2;
 
-        oled.display();
         displayseconds = nowseconds;
   }
 

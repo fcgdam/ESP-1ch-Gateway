@@ -488,7 +488,8 @@ int WlanConnect(char * wifi_ssid, char * wifi_pass) {
     // OK breathing cyan
     wifi_led_color=COLOR_YELLOW;
     Serial.println(F("STA"));
-    Serial.print("IP Address: "); Serial.println(WiFi.localIP().toString());
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP().toString());
 
   } else if ( con_type==WIFI_AP || con_type==WIFI_AP_STA ) {
     // Owe're also in AP ? breathing Yellow
@@ -772,8 +773,8 @@ void sendstat() {
     uint8_t status_report[STATUS_SIZE]; 					// status report as a JSON object
     char stat_timestamp[32];								// XXX was 24
     time_t t;
-	char clat[10]={0};
-	char clon[10]={0};
+	  char clat[10]={0};
+	  char clon[10]={0};
 
     int stat_index=0;
 
@@ -781,7 +782,7 @@ void sendstat() {
     status_report[0]  = PROTOCOL_VERSION;					// 0x01
     status_report[3]  = PKT_PUSH_DATA;						// 0x00
 
-	// READ MAC ADDRESS OF ESP8266, and return unique Gateway ID consisting of MAC address and 2bytes 0xFF
+	  // READ MAC ADDRESS OF ESP8266, and return unique Gateway ID consisting of MAC address and 2bytes 0xFF
     status_report[4]  = MAC_address[0];
     status_report[5]  = MAC_address[1];
     status_report[6]  = MAC_address[2];
@@ -809,7 +810,7 @@ void sendstat() {
 	// Build the Status message in JSON format, XXX Split this one up...
 	delay(1);
 
-    int j = snprintf((char *)(status_report + stat_index), STATUS_SIZE-stat_index,
+  int j = snprintf((char *)(status_report + stat_index), STATUS_SIZE-stat_index,
 		"{\"stat\":{\"time\":\"%s\",\"lati\":%s,\"long\":%s,\"alti\":%i,\"rxnb\":%u,\"rxok\":%u,\"rxfw\":%u,\"ackr\":%u.0,\"dwnb\":%u,\"txnb\":%u,\"pfrm\":\"%s\",\"mail\":\"%s\",\"desc\":\"%s\"}}",
 		stat_timestamp, clat, clon, (int)alt, LORA_rx_rcv, LORA_rx_ok, LORA_pkt_fwd, 0, 0, 0,platform,email,description);
 
@@ -945,7 +946,7 @@ void setup_WIFI() {
 
 void setup_LORA() {
   #ifdef OLED_DISPLAY
-    OLEDDisplay_println("LORA MDM");
+    OLEDDisplay_println("LORA MDM?");
   #endif
 
   // Configure IO Pin
@@ -1128,6 +1129,7 @@ void process_statusBar() {
   //Serial.printf("%s %02d:%02d:%02d", DaysNames[weekday()-1], hour(), minute(), second() );
   OLEDDisplay_SetTime(  DaysNames[weekday()-1] , hour(), minute() );
   OLEDDisplay_SetRSSI(WiFi.RSSI());
+  OLED_setIP2Display(WiFi.localIP().toString());
 
   OLEDDisplay_Animate();
 
